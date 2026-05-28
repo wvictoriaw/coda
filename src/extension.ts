@@ -1,26 +1,53 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
+import { CodaPanel } from './webview/panel';
+import { PythonRunner } from './python/runner';
+import { LLMClient } from './llm/client';
+import { StateManager } from './state/manager';
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
-
-	// Use the console to output diagnostic information (console.log) and errors (console.error)
-	// This line of code will only be executed once when your extension is activated
-	console.log('Congratulations, your extension "coda" is now active!');
-
-	// The command has been defined in the package.json file
-	// Now provide the implementation of the command with registerCommand
-	// The commandId parameter must match the command field in package.json
-	const disposable = vscode.commands.registerCommand('coda.helloWorld', () => {
-		// The code you place here will be executed every time your command is executed
-		// Display a message box to the user
-		vscode.window.showInformationMessage('Hello VSCode from coda!');
-	});
-
-	context.subscriptions.push(disposable);
+	console.log('Coda is active');
+	
+	const state = new StateManager(context);
+	const llm = new LLMClient();
+	const runner = new PythonRunner(context);
+	
+	// Restore saved environment immediately — no async needed
+	const { pythonPath, hasSelectedEnv } = state.getEnvironment();
+	if (hasSelectedEnv && pythonPath) {
+		runner.setPythonPath(pythonPath);
+	}
+	
+	context.subscriptions.push(
+		vscode.commands.registerCommand('coda.openPanel', () => {
+			CodaPanel.createOrShow(context.extensionUri, state, llm, runner);
+		})
+	);
+	
+	context.subscriptions.push(
+		vscode.commands.registerCommand('coda.debugSnippet', () => {
+			const editor = vscode.window.activeTextEditor;
+			if (!editor) return;
+			
+			const selection = editor.selection;
+			const snippet = editor.document.getText(selection);
+			
+			if (!snippet) {
+				vscode.window.showWarningMessage('Select some Python code first');
+				return;
+			}
+			
+			const fileContent = editor.document.getText();
+			
+			CodaPanel.createOrShow(context.extensionUri, state, llm, runner);
+			CodaPanel.instance?.loadSnippet(snippet, selection.start.line, fileContent);
+		})
+	);
+	
+	context.subscriptions.push(
+		vscode.commands.registerCommand('coda.generateHere', () => {
+			vscode.window.showInformationMessage('Generation coming soon');
+		})
+	);
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {}

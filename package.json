@@ -14,27 +14,109 @@
   "contributes": {
     "commands": [
       {
-        "command": "coda.helloWorld",
-        "title": "Hello World"
+        "command": "coda.openPanel",
+        "title": "Coda: Open Panel"
+      },
+      {
+        "command": "coda.debugSnippet",
+        "title": "Coda: Debug Selected Snippet"
+      },
+      {
+        "command": "coda.generateHere",
+        "title": "Coda: Generate Code Here"
       }
-    ]
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "coda.debugSnippet",
+          "when": "editorHasSelection && resourceLangId == python",
+          "group": "coda"
+        }
+      ]
+    },
+    "keybindings": [
+      {
+        "command": "coda.debugSnippet",
+        "key": "ctrl+shift+d",
+        "mac": "cmd+shift+d",
+        "when": "editorHasSelection && resourceLangId == python"
+      },
+      {
+        "command": "coda.openPanel",
+        "key": "ctrl+shift+c",
+        "mac": "cmd+shift+c"
+      }
+    ],
+    "configuration": {
+      "title": "Coda",
+      "properties": {
+        "coda.llm.provider": {
+          "type": "string",
+          "enum": [
+            "ollama",
+            "claude",
+            "openai",
+            "custom"
+          ],
+          "default": "ollama",
+          "description": "LLM provider to use"
+        },
+        "coda.llm.baseUrl": {
+          "type": "string",
+          "default": "http://localhost:11434",
+          "description": "Base URL for Ollama or custom endpoint"
+        },
+        "coda.llm.apiKey": {
+          "type": "string",
+          "default": "",
+          "description": "API key for Claude or OpenAI"
+        },
+        "coda.llm.mainModel": {
+          "type": "string",
+          "default": "qwen2.5-coder",
+          "description": "Model for code generation"
+        },
+        "coda.llm.classifierModel": {
+          "type": "string",
+          "default": "phi4-mini",
+          "description": "Model for change classification"
+        },
+        "coda.pythonPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to Python interpreter. Leave empty to auto-detect from VS Code Python extension."
+        }
+      }
+    }
   },
   "scripts": {
-    "vscode:prepublish": "npm run compile",
+    "vscode:prepublish": "npm run compile && npm run build:webview",
     "compile": "tsc -p ./",
     "watch": "tsc -watch -p ./",
+    "build:webview": "node esbuild.config.js",
+    "watch:webview": "node esbuild.config.js --watch",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
     "test": "vscode-test"
   },
   "devDependencies": {
-    "@types/vscode": "^1.118.0",
     "@types/mocha": "^10.0.10",
-    "@types/node": "22.x",
-    "typescript-eslint": "^8.56.1",
-    "eslint": "^9.39.3",
-    "typescript": "^5.9.3",
+    "@types/node": "^22.19.19",
+    "@types/react": "^19.2.14",
+    "@types/react-dom": "^19.2.3",
+    "@types/vscode": "^1.118.0",
+    "@types/vscode-webview": "^1.57.5",
     "@vscode/test-cli": "^0.0.12",
-    "@vscode/test-electron": "^2.5.2"
+    "@vscode/test-electron": "^2.5.2",
+    "esbuild": "^0.28.0",
+    "eslint": "^9.39.3",
+    "react": "^19.2.6",
+    "react-dom": "^19.2.6",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.56.1"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.97.1"
   }
 }
