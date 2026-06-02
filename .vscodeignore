@@ -9,3 +9,10 @@ vsc-extension-quickstart.md
 **/*.map
 **/*.ts
 **/.vscode-test.*
+node_modules/**
+
+# Ensure the 'out' folder is included
+!out/**
+
+# If you specifically want to exclude dev-only files inside 'out'
+out/**/*.map

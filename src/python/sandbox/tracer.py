@@ -1,24 +1,68 @@
 import sys
 import types
 
+
 def _serialize(value):
     if isinstance(value, (str, int, float, bool, type(None))):
         return value
     if isinstance(value, types.ModuleType):
         return f"<module '{value.__name__}'>"
-    # Check for numpy scalar first (has item() method and is an instance not a class)
+
+    # DataFrame
+    if hasattr(value, 'to_dict') and hasattr(value, 'shape') and hasattr(value, 'columns'):
+        try:
+            rows, cols = value.shape
+            return {
+                '__type': 'dataframe',
+                'rows': rows,
+                'cols': cols,
+                'columns': list(str(c) for c in value.columns),
+                'preview': value.head(10).to_dict(orient='records') if rows > 0 else [],
+                'too_wide': cols > 20,
+            }
+        except Exception:
+            return str(value)
+
+    # Series
+    if hasattr(value, 'to_list') and hasattr(value, 'dtype') and hasattr(value, 'name') and not hasattr(value, 'columns'):
+        try:
+            return {
+                '__type': 'series',
+                'name': str(value.name) if value.name is not None else None,
+                'length': len(value),
+                'dtype': str(value.dtype),
+                'preview': value.head(10).tolist(),
+            }
+        except Exception:
+            return str(value)
+
+    # ndarray
+    if hasattr(value, 'shape') and hasattr(value, 'dtype') and hasattr(value, 'tolist') and not hasattr(value, 'columns'):
+        try:
+            shape = list(value.shape)
+            ndim = len(shape)
+            too_wide = ndim == 2 and shape[1] > 20
+            if ndim == 1:
+                preview = value.tolist()
+            else:
+                preview = value[:10].tolist()
+            return {
+                '__type': 'ndarray',
+                'shape': shape,
+                'dtype': str(value.dtype),
+                'preview': preview,
+                'too_wide': too_wide,
+            }
+        except Exception:
+            return str(value)
+
+    # numpy scalar
     if hasattr(value, 'item') and callable(getattr(value, 'item', None)) and not isinstance(value, type):
         try:
             return value.item()
         except Exception:
             pass
-    # Check for numpy array or anything with tolist that's an instance not a class
-    if hasattr(value, 'tolist') and callable(getattr(value, 'tolist', None)) and not isinstance(value, type):
-        try:
-            return value.tolist()
-        except Exception:
-            pass
-    
+
     if isinstance(value, (list, tuple)):
         return [_serialize(v) for v in value]
     if isinstance(value, dict):
@@ -65,7 +109,6 @@ def make_tracer():
     def _tracer(frame, event, arg):
         nonlocal prev, snippet_frame
 
-        # Only trace the snippet's own frame, not imports or internal frames
         if snippet_frame is None:
             if frame.f_code.co_filename == '<snippet>':
                 snippet_frame = frame

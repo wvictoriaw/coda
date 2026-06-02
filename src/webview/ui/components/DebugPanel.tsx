@@ -24,19 +24,264 @@ interface Props {
     snippetContext: string;
 }
 
-export function DebugPanel({ snippet, startLine, externalVars, vscode, snippetContext }: Props) {
+import { isSpecialValue, SpecialValue, DataFrameValue, SeriesValue, NdarrayValue } from './types';
+
+function SpecialValueCell({ value, onPreview }: {
+    value: SpecialValue;
+    onPreview: (value: SpecialValue) => void;
+}) {
+    const descriptor = () => {
+        if (value.__type === 'dataframe') {
+            return `DataFrame  ${value.rows} rows × ${value.cols} cols`;
+        }
+        if (value.__type === 'series') {
+            return `Series  ${value.length} items  ${value.dtype}`;
+        }
+        if (value.__type === 'ndarray') {
+            return `ndarray  [${value.shape.join(' × ')}]  ${value.dtype}`;
+        }
+        return 'unknown';
+    };
+    
+    return (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        <span style={{
+            fontSize: 11,
+            fontFamily: 'var(--vscode-editor-font-family)',
+            color: tokens.accent,
+        }}>
+        {descriptor()}
+        </span>
+        <button
+        onClick={() => onPreview(value)}
+        style={{
+            background: 'transparent',
+            border: `1px solid ${tokens.border}`,
+            borderRadius: 3,
+            padding: '2px 8px',
+            fontSize: 9,
+            color: tokens.textSecondary,
+            cursor: 'pointer',
+            letterSpacing: '0.05em',
+        }}
+        >
+        preview
+        </button>
+        </div>
+    );
+}
+
+function PreviewModal({ value, onClose }: {
+    value: SpecialValue;
+    onClose: () => void;
+}) {
+    const renderTable = (columns: string[], rows: Record<string, unknown>[]) => (
+        <div style={{ overflowX: 'auto' }}>
+        <table style={modalStyles.table}>
+        <thead>
+        <tr>
+        {columns.map(col => (
+            <th key={col} style={modalStyles.th}>{col}</th>
+        ))}
+        </tr>
+        </thead>
+        <tbody>
+        {rows.map((row, i) => (
+            <tr key={i}>
+            {columns.map(col => (
+                <td key={col} style={modalStyles.td}>
+                {JSON.stringify(row[col])}
+                </td>
+            ))}
+            </tr>
+        ))}
+        </tbody>
+        </table>
+        </div>
+    );
+    
+    const renderContent = () => {
+        if (value.__type === 'dataframe') {
+            if (value.too_wide) {
+                return (
+                    <p style={{ color: tokens.textSecondary, fontSize: 11 }}>
+                    Too many columns to preview ({value.cols} cols) — open in notebook for full view.
+                    </p>
+                );
+            }
+            return (
+                <>
+                {renderTable(value.columns, value.preview)}
+                {value.rows > 10 && (
+                    <p style={{ color: tokens.textDimmed, fontSize: 9, marginTop: 8 }}>
+                    showing 10 of {value.rows} rows
+                    </p>
+                )}
+                </>
+            );
+        }
+        
+        if (value.__type === 'series') {
+            return (
+                <>
+                {renderTable(
+                    [value.name ?? 'value'],
+                    value.preview.map(v => ({ [value.name ?? 'value']: v }))
+                )}
+                {value.length > 10 && (
+                    <p style={{ color: tokens.textDimmed, fontSize: 9, marginTop: 8 }}>
+                    showing 10 of {value.length} items
+                    </p>
+                )}
+                </>
+            );
+        }
+        
+        if (value.__type === 'ndarray') {
+            if (value.too_wide) {
+                return (
+                    <p style={{ color: tokens.textSecondary, fontSize: 11 }}>
+                    Too many columns to preview — open in notebook for full view.
+                    </p>
+                );
+            }
+            if (value.shape.length === 1) {
+                return renderTable(
+                    ['value'],
+                    (value.preview as unknown[]).map(v => ({ value: v }))
+                );
+            }
+            // 2D array
+            const cols = Array.from(
+                { length: value.shape[1] },
+                (_, i) => `col_${i}`
+            );
+            const rows = (value.preview as unknown[][]).map(row =>
+                Object.fromEntries(row.map((v, i) => [`col_${i}`, v]))
+            );
+            return (
+                <>
+                {renderTable(cols, rows)}
+                {value.shape[0] > 10 && (
+                    <p style={{ color: tokens.textDimmed, fontSize: 9, marginTop: 8 }}>
+                    showing 10 of {value.shape[0]} rows
+                    </p>
+                )}
+                </>
+            );
+        }
+    };
+    
+    return (
+        <div style={modalStyles.overlay} onClick={onClose}>
+        <div style={modalStyles.modal} onClick={e => e.stopPropagation()}>
+        <div style={modalStyles.header}>
+        <span style={modalStyles.title}>
+        {value.__type === 'dataframe'
+            ? `DataFrame  ${(value as DataFrameValue).rows} × ${(value as DataFrameValue).cols}`
+            : value.__type === 'series'
+            ? `Series  ${(value as SeriesValue).length} items`
+            : `ndarray  [${(value as NdarrayValue).shape.join(' × ')}]`
+        }
+        </span>
+        <button onClick={onClose} style={modalStyles.closeButton}>✕</button>
+        </div>
+        <div style={modalStyles.body}>
+        {renderContent()}
+        </div>
+        </div>
+        </div>
+    );
+}
+
+const modalStyles: Record<string, React.CSSProperties> = {
+    overlay: {
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.2)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+    },
+    modal: {
+        background: tokens.bg,
+        border: `1px solid ${tokens.border}`,
+        borderRadius: 6,
+        width: '90%',
+        maxHeight: '80vh',
+        display: 'flex',
+        flexDirection: 'column',
+        overflow: 'hidden',
+        boxShadow: '0 8px 24px rgba(0,0,0,0.12)',
+    },
+    header: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        padding: '10px 16px',
+        borderBottom: `1px solid ${tokens.border}`,
+    },
+    title: {
+        fontSize: 11,
+        fontWeight: 600,
+        color: tokens.textPrimary,
+        fontFamily: 'var(--vscode-editor-font-family)',
+        letterSpacing: '0.05em',
+    },
+    closeButton: {
+        background: 'transparent',
+        border: 'none',
+        cursor: 'pointer',
+        color: tokens.textSecondary,
+        fontSize: 12,
+        padding: '0 4px',
+    },
+    body: {
+        padding: 16,
+        overflowY: 'auto',
+        overflowX: 'auto',
+    },
+    table: {
+        borderCollapse: 'collapse',
+        fontSize: 11,
+        fontFamily: 'var(--vscode-editor-font-family)',
+        width: '100%',
+    },
+    th: {
+        padding: '6px 12px',
+        background: tokens.bgPanel,
+        borderBottom: `1px solid ${tokens.border}`,
+        color: tokens.textSecondary,
+        fontWeight: 600,
+        letterSpacing: '0.05em',
+        textAlign: 'left',
+        whiteSpace: 'nowrap',
+    },
+    td: {
+        padding: '5px 12px',
+        borderBottom: `1px solid ${tokens.border}`,
+        color: tokens.textPrimary,
+        whiteSpace: 'nowrap',
+    },
+};
+
+export function DebugPanel({ snippet, startLine, externalVars, snippetContext, vscode }: Props) {
     const [editedSnippet, setEditedSnippet] = useState(snippet);
     const [varValues, setVarValues] = useState<Record<string, string>>(
         Object.fromEntries(externalVars.map(v => [v, '']))
     );
     const [result, setResult] = useState<RunResult | null>(null);
     const [running, setRunning] = useState(false);
-    const [contextOpen, setContextOpen] = useState(false);
+    const [contextOpen, setContextOpen] = useState(true);
+    const [previewValue, setPreviewValue] = useState<SpecialValue | null>(null);
+    const [inputError, setInputError] = useState<string | null>(null);
     
     React.useEffect(() => {
         setEditedSnippet(snippet);
         setVarValues(Object.fromEntries(externalVars.map(v => [v, ''])));
         setResult(null);
+        setInputError(null);
     }, [snippet, externalVars]);
     
     React.useEffect(() => {
@@ -55,8 +300,17 @@ export function DebugPanel({ snippet, startLine, externalVars, vscode, snippetCo
     }, []);
     
     const handleRun = () => {
+        // Validate inputs
+        const empty = externalVars.filter(v => !varValues[v]?.trim());
+        if (empty.length > 0) {
+            setInputError(`fill in all inputs before running`);
+            return;
+        }
+        
+        setInputError(null);
         setRunning(true);
         setResult(null);
+        
         const parsed: Record<string, unknown> = {};
         for (const [k, v] of Object.entries(varValues)) {
             try { parsed[k] = JSON.parse(v); }
@@ -77,14 +331,15 @@ export function DebugPanel({ snippet, startLine, externalVars, vscode, snippetCo
     
     return (
         <div style={styles.container}>
+        {previewValue && (
+            <PreviewModal value={previewValue} onClose={() => setPreviewValue(null)} />
+        )}
         
+        {/* Context */}
         {snippetContext && (
             <div style={styles.contextSection}>
-            <div
-            style={styles.contextHeader}
-            onClick={() => setContextOpen(o => !o)}
-            >
-            <span style={styles.sectionLabel}>CONTEXT</span>
+            <div style={styles.contextHeader} onClick={() => setContextOpen(o => !o)}>
+            <span style={sectionStyles.label}>CONTEXT</span>
             <span style={styles.contextToggle}>{contextOpen ? '▲' : '▼'}</span>
             </div>
             {contextOpen && (
@@ -138,6 +393,11 @@ export function DebugPanel({ snippet, startLine, externalVars, vscode, snippetCo
         </button>
         </div>
         
+        {/* Input error */}
+        {inputError && (
+            <p style={styles.inputError}>{inputError}</p>
+        )}
+        
         {/* Prints */}
         {result && result.prints && result.prints.length > 0 && (
             <Section label="PRINTS">
@@ -152,7 +412,7 @@ export function DebugPanel({ snippet, startLine, externalVars, vscode, snippetCo
             </Section>
         )}
         
-        {/* Output vars */}
+        {/* Output */}
         {result && (
             <Section label="OUTPUT">
             {!result.success && (
@@ -163,14 +423,16 @@ export function DebugPanel({ snippet, startLine, externalVars, vscode, snippetCo
                 {Object.entries(result.final_vars).map(([k, v]) => (
                     <div key={k} style={styles.tableRow}>
                     <span style={styles.varName}>{k}</span>
-                    <span style={styles.varValue}>{JSON.stringify(v)}</span>
+                    {isSpecialValue(v)
+                        ? <SpecialValueCell value={v} onPreview={setPreviewValue} />
+                        : <span style={styles.varValue}>{JSON.stringify(v)}</span>
+                    }
                     </div>
                 ))}
                 </div>
             )}
             </Section>
         )}
-        
         </div>
     );
 }
@@ -355,6 +617,12 @@ const styles: Record<string, React.CSSProperties> = {
         whiteSpace: 'pre-wrap' as const,
         wordBreak: 'break-all' as const,
     },
+    inputError: {
+        margin: 0,
+        fontSize: 11,
+        color: tokens.error,
+        textAlign: 'right' as const,
+    },
 };
 
 const sectionStyles: Record<string, React.CSSProperties> = {
@@ -383,4 +651,5 @@ const sectionStyles: Record<string, React.CSSProperties> = {
         display: 'flex',
         flexDirection: 'column',
     },
+    
 };

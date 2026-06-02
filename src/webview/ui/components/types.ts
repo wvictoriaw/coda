@@ -16,3 +16,34 @@ export interface RunResult {
   error?: string;
   traceback?: string;
 }
+
+export interface DataFrameValue {
+  __type: 'dataframe';
+  rows: number;
+  cols: number;
+  columns: string[];
+  preview: Record<string, unknown>[];
+  too_wide: boolean;
+}
+
+export interface SeriesValue {
+  __type: 'series';
+  name: string | null;
+  length: number;
+  dtype: string;
+  preview: unknown[];
+}
+
+export interface NdarrayValue {
+  __type: 'ndarray';
+  shape: number[];
+  dtype: string;
+  preview: unknown[];
+  too_wide: boolean;
+}
+
+export type SpecialValue = DataFrameValue | SeriesValue | NdarrayValue;
+
+export function isSpecialValue(v: unknown): v is SpecialValue {
+  return typeof v === 'object' && v !== null && '__type' in v;
+}
