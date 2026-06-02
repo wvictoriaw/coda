@@ -1,5 +1,19 @@
 # coda README
 
+vsc extension that helps me remove the things about AI coding assistants that make them a nightmare
+
+## Features
+
+- Debugger that works on a "snippet" concept. What's a breakpoint? Never heard of her.
+- Native chatbot maybe soon
+
+## Support
+
+- Only Python for now
+- Other languages coming soon
+
+<!-- # coda README
+
 This is the README for your extension "coda". After writing up a brief description, we recommend including the following sections.
 
 ## Features
@@ -68,4 +82,4 @@ You can author your README using Visual Studio Code. Here are some useful editor
 * [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
 * [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
 
-**Enjoy!**
+**Enjoy!** -->
