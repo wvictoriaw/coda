@@ -21,7 +21,23 @@ const copyPythonPlugin = {
     },
 };
 
-const ctx = esbuild.context({
+// 1. Configuration for the Extension Host & the Node Sandbox (Target: Node)
+const nodeConfig = {
+    entryPoints: {
+        'extension': 'src/extension.ts',
+        'node/sandbox/bridge': 'src/node/sandbox/bridge.ts' // Our upcoming Node sandbox
+    },
+    bundle: true,
+    outdir: 'out',
+    format: 'cjs',
+    platform: 'node',
+    external: ['vscode', 'jsdom', 'canvas', 'vm2'],
+    sourcemap: true,
+    minify: production,
+};
+
+// 2. Configuration for your React Frontend (Target: Browser)
+const webviewConfig = {
     entryPoints: ['src/webview/ui/index.tsx'],
     bundle: true,
     outfile: 'out/webview/index.js',
@@ -29,17 +45,26 @@ const ctx = esbuild.context({
     platform: 'browser',
     jsx: 'automatic',
     sourcemap: true,
-    minify: false,
-    plugins: [copyPythonPlugin],
-});
+    minify: production,
+    plugins: [copyPythonPlugin], // Your plugin safely runs here
+};
 
-ctx.then(async (context) => {
+async function main() {
     if (watch) {
-        await context.watch();
-        console.log('Watching webview...');
+        const nodeCtx = await esbuild.context(nodeConfig);
+        const webviewCtx = await esbuild.context(webviewConfig);
+        
+        await nodeCtx.watch();
+        await webviewCtx.watch();
+        console.log('👀 Watching extension, node sandbox, and webview...');
     } else {
-        await context.rebuild();
-        await context.dispose();
-        console.log('Webview built');
+        await esbuild.build(nodeConfig);
+        await esbuild.build(webviewConfig);
+        console.log('🚀 All environments built successfully');
     }
-}).catch(() => process.exit(1));
+}
+
+main().catch((err) => {
+    console.error(err);
+    process.exit(1);
+});

@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import { StateManager } from '../state/manager';
 import { LLMClient } from '../llm/client';
 import { PythonRunner } from '../python/runner';
+import { NodeRunner } from '../node/runner';
 
 export class CodaPanel {
   public static instance: CodaPanel | undefined;
@@ -14,7 +15,8 @@ export class CodaPanel {
     private readonly extensionUri: vscode.Uri,
     private readonly state: StateManager,
     private readonly llm: LLMClient,
-    private readonly runner: PythonRunner
+    private readonly runner: PythonRunner,
+    private readonly nodeRunner: NodeRunner,
   ) {
     this.panel = vscode.window.createWebviewPanel(
       'codaPanel',
@@ -55,13 +57,14 @@ export class CodaPanel {
     extensionUri: vscode.Uri,
     state: StateManager,
     llm: LLMClient,
-    runner: PythonRunner
+    runner: PythonRunner,
+    nodeRunner: NodeRunner
   ) {
     if (CodaPanel.instance) {
       CodaPanel.instance.panel.reveal(vscode.ViewColumn.Beside);
       return;
     }
-    CodaPanel.instance = new CodaPanel(extensionUri, state, llm, runner);
+    CodaPanel.instance = new CodaPanel(extensionUri, state, llm, runner, nodeRunner);
   }
   
   // Called when developer highlights and triggers debug mode
@@ -76,6 +79,10 @@ export class CodaPanel {
       externalVars,
       context,
     });
+  }
+  
+  public postMessage(message: unknown) {
+    this.panel.webview.postMessage(message);
   }
   
   // Handle messages coming from the React UI
@@ -140,6 +147,58 @@ export class CodaPanel {
         break;
       }
       
+      case 'setNodePort': {
+        const port = message.port as number;
+        this.state.setNodePort(port);
+        break;
+      }
+      
+      case 'openInBrowser': {
+        const port = message.port as number;
+        const url = `http://localhost:${port}`;
+        const browser = this.state.getNodeConfig().preferredBrowser;
+        if (browser) {
+          const cp = require('child_process');
+          const platform = process.platform;
+          if (platform === 'darwin') {
+            cp.spawn('open', ['-a', browser, url]);
+          } else if (platform === 'win32') {
+            cp.spawn('start', [browser, url], { shell: true });
+          } else {
+            cp.spawn(browser, [url]);
+          }
+        } else {
+          vscode.env.openExternal(vscode.Uri.parse(url));
+        }
+        break;
+      }
+      
+      case 'clearLogs': {
+        this.panel.webview.postMessage({ type: 'clearLogs' });
+        break;
+      }
+      
+      case 'componentLog': {
+        // forwarded from coda-dev.ts via iframe postMessage
+        this.panel.webview.postMessage({
+          type: 'appendLog',
+          source: 'js',
+          level: message.level,
+          args: message.args,
+          timestamp: Date.now(),
+        });
+        break;
+      }
+      
+      case 'componentState': {
+        this.panel.webview.postMessage({
+          type: 'updateState',
+          state: message.state,
+          props: message.props,
+        });
+        break;
+      }
+      
       default:
       console.warn(`Coda: unknown message type ${message.type}`);
     }
@@ -156,9 +215,10 @@ export class CodaPanel {
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta http-equiv="Content-Security-Policy" 
-    content="default-src 'none'; 
-             script-src ${this.panel.webview.cspSource}; 
-             style-src ${this.panel.webview.cspSource} 'unsafe-inline';">
+  content="default-src 'none'; 
+           script-src ${this.panel.webview.cspSource}; 
+           style-src ${this.panel.webview.cspSource} 'unsafe-inline';
+           frame-src http://localhost:*;">
   <title>Coda</title>
   <style>
     body {
@@ -193,10 +253,13 @@ export class CodaPanel {
   
   private async sendEnvStatus() {
     const { pythonPath, hasSelectedEnv } = this.state.getEnvironment();
+    const { port, preferredBrowser } = this.state.getNodeConfig();
     this.panel.webview.postMessage({
       type: 'envStatus',
       hasSelectedEnv,
       pythonPath,
+      nodePort: port,
+      preferredBrowser,
     });
   }
 }

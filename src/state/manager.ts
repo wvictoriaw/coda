@@ -22,6 +22,8 @@ export interface CodaState {
   preferences: PreferenceEntry[];
   pythonPath: string | null;
   hasSelectedEnv: boolean;
+  nodePort: number;
+  preferredBrowser: string | null;
 }
 
 export class StateManager {
@@ -40,7 +42,9 @@ export class StateManager {
       changeLog: [],
       preferences: [],
       pythonPath: null,
-      hasSelectedEnv: false
+      hasSelectedEnv: false,
+      nodePort: 3000,
+      preferredBrowser: null,
     };
   }
   
@@ -117,6 +121,23 @@ export class StateManager {
     return {
       pythonPath: this.state.pythonPath,
       hasSelectedEnv: this.state.hasSelectedEnv,
+    };
+  }
+  
+  setNodePort(port: number) {
+    this.state.nodePort = port;
+    this.persist();
+  }
+  
+  setPreferredBrowser(browser: string | null) {
+    this.state.preferredBrowser = browser;
+    this.persist();
+  }
+  
+  getNodeConfig(): { port: number; preferredBrowser: string | null } {
+    return {
+      port: this.state.nodePort,
+      preferredBrowser: this.state.preferredBrowser,
     };
   }
 }

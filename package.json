@@ -11,6 +11,11 @@
   ],
   "activationEvents": [],
   "main": "./out/extension.js",
+  "coda.browser": {
+    "type": "string",
+    "default": "",
+    "description": "Preferred browser for opening component preview. Leave empty for system default."
+  },
   "contributes": {
     "commands": [
       {
@@ -30,7 +35,7 @@
       "editor/context": [
         {
           "command": "coda.debugSnippet",
-          "when": "editorHasSelection && resourceLangId == python",
+          "when": "editorHasSelection && resourceLangId =~ /^(python|javascript|typescript|javascriptreact|typescriptreact)$/",
           "group": "coda"
         }
       ]
@@ -40,7 +45,7 @@
         "command": "coda.debugSnippet",
         "key": "ctrl+shift+d",
         "mac": "cmd+shift+d",
-        "when": "editorHasSelection && resourceLangId == python"
+        "when": "editorHasSelection && resourceLangId =~ /^(python|javascript|typescript|javascriptreact|typescriptreact)$/"
       },
       {
         "command": "coda.openPanel",
@@ -92,8 +97,8 @@
   },
   "scripts": {
     "vscode:prepublish": "npm run compile && npm run build:webview",
-    "compile": "tsc -p ./",
-    "watch": "tsc -watch -p ./",
+    "compile": "node esbuild.config.js",
+    "watch": "node esbuild.config.js --watch",
     "build:webview": "node esbuild.config.js",
     "watch:webview": "node esbuild.config.js --watch",
     "pretest": "npm run compile && npm run lint",
@@ -101,6 +106,7 @@
     "test": "vscode-test"
   },
   "devDependencies": {
+    "@types/jsdom": "^28.0.3",
     "@types/mocha": "^10.0.10",
     "@types/node": "^22.19.19",
     "@types/react": "^19.2.14",
@@ -117,6 +123,8 @@
     "typescript-eslint": "^8.56.1"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.97.1"
+    "@anthropic-ai/sdk": "^0.97.1",
+    "jsdom": "^27.0.1",
+    "vm2": "^3.11.5"
   }
 }
