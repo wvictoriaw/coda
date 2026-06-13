@@ -91,20 +91,22 @@ export class CodaPanel {
     switch (message.type) {
       
       case 'runSnippet': {
-        console.log('running snippet...');
         const snippet = message.snippet as string;
         const vars = message.vars as Record<string, unknown>;
         try {
-          console.log('calling runner...');
-          const result = await this.runner.runSnippet(snippet, vars);
-          console.log('success:', result.success);
-          console.log('error:', result.error);
-          console.log('prints:', result.prints);
-          console.log('files:', result.files_written);
+          const result = await this.runner.runSnippet(
+            snippet,
+            vars,
+            (line: string) => {
+              this.panel.webview.postMessage({
+                type: 'streamPrint',
+                line,
+              });
+            }
+          );
           this.panel.webview.postMessage({ type: 'runResult', result });
         } catch (err) {
-          const error = err instanceof Error ? err.stack : String(err);
-          console.log('run error:', error);
+          const error = err instanceof Error ? err.message : String(err);
           this.panel.webview.postMessage({ type: 'runError', error });
         }
         break;

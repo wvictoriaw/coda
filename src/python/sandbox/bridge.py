@@ -45,13 +45,17 @@ def main():
         print(json.dumps(result))
 
     elif mode == 'run':
-        # Ensure we have a valid sandbox directory
+        def stream_print(line):
+            print(json.dumps({'type': 'print', 'line': line}), flush=True)
+
         result = run(
             payload['snippet'],
             payload.get('vars', {}),
-            payload['sandbox_dir']
+            payload['sandbox_dir'],
+            on_print=stream_print
         )
-        print(json.dumps(result, cls=EnhancedEncoder))
+        result['type'] = 'result'
+        print(json.dumps(result, cls=EnhancedEncoder), flush=True)
     
     elif mode == 'context':
         result = extract_context(

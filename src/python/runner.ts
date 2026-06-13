@@ -109,16 +109,89 @@ export class PythonRunner {
         return { externalVars: result };
     }
     
-    async runSnippet(snippet: string, vars: Record<string, unknown>): Promise<RunResult> {
+    async runSnippet(
+        snippet: string,
+        vars: Record<string, unknown>,
+        onPrint: (line: string) => void
+    ): Promise<RunResult> {
         if (!this.sandboxDir) {
             throw new Error('No workspace folder found — open a folder first');
         }
-        return await this.call({
-            mode: 'run',
-            snippet,
-            vars,
-            sandbox_dir: this.sandboxDir,
-        }) as RunResult;
+        
+        return new Promise((resolve, reject) => {
+            if (!this.pythonPath) {
+                reject(new Error('No Python environment selected — please select one in the ENV tab'));
+                return;
+            }
+            
+            const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
+            const proc = cp.spawn(this.pythonPath, [this.bridgeScript], {
+                cwd: workspaceRoot,
+            });
+            
+            const timer = setTimeout(() => {
+                proc.kill();
+                reject(new Error('Python process timed out'));
+            }, 65000);
+            
+            let buffer = '';
+            let stderr = '';
+            
+            proc.stdout.on('data', (chunk: Buffer) => {
+                buffer += chunk.toString();
+                const lines = buffer.split('\n');
+                buffer = lines.pop() ?? '';
+                
+                for (const line of lines) {
+                    if (!line.trim()) continue;
+                    try {
+                        const msg = JSON.parse(line);
+                        if (msg.type === 'print') {
+                            onPrint(msg.line);
+                        } else if (msg.type === 'result' || msg.success !== undefined) {
+                            clearTimeout(timer);
+                            resolve(msg as RunResult);
+                        }
+                    } catch {
+                        // not JSON — ignore
+                    }
+                }
+            });
+            
+            proc.stderr.on('data', (chunk: Buffer) => {
+                stderr += chunk.toString();
+                console.log('Python stderr:', chunk.toString());
+            });
+            
+            proc.on('close', (code) => {
+                clearTimeout(timer);
+                if (buffer.trim()) {
+                    try {
+                        const msg = JSON.parse(buffer);
+                        if (msg.type === 'result' || msg.success !== undefined) {
+                            resolve(msg as RunResult);
+                            return;
+                        }
+                    } catch { /* ignore */ }
+                }
+                if (code !== 0) {
+                    reject(new Error(`Python process exited with code ${code}: ${stderr}`));
+                }
+            });
+            
+            proc.on('error', (err) => {
+                clearTimeout(timer);
+                reject(new Error(`Failed to spawn Python: ${err.message}`));
+            });
+            
+            proc.stdin.write(JSON.stringify({
+                mode: 'run',
+                snippet,
+                vars,
+                sandbox_dir: this.sandboxDir,
+            }));
+            proc.stdin.end();
+        });
     }
     
     async detectEnvironments(): Promise<{ name: string; path: string; type: string }[]> {
