@@ -24,14 +24,12 @@ const copyPythonPlugin = {
 // 1. Configuration for the Extension Host & the Node Sandbox (Target: Node)
 const nodeConfig = {
     entryPoints: {
-        'extension': 'src/extension.ts',
-        'node/sandbox/bridge': 'src/node/sandbox/bridge.ts' // Our upcoming Node sandbox
-    },
+        'extension': 'src/extension.ts'    },
     bundle: true,
     outdir: 'out',
     format: 'cjs',
     platform: 'node',
-    external: ['vscode', 'jsdom', 'canvas', 'vm2'],
+    external: ['vscode', 'jsdom', 'canvas'],
     sourcemap: true,
     minify: production,
 };
