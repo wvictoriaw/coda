@@ -10,6 +10,7 @@ vsc extension that helps me remove the things about AI coding assistants that ma
 ## Support
 
 - Only Python for now
+- some localhost functionality for js/jsx/ts/tsx files
 - Other languages coming soon
 
 <!-- # coda README
