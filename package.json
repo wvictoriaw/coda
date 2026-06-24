@@ -4,7 +4,6 @@
   "displayName": "coda",
   "description": "",
   "version": "0.0.1",
-  
   "engines": {
     "vscode": "^1.118.0"
   },
@@ -44,7 +43,7 @@
     "keybindings": [
       {
         "command": "coda.debugSnippet",
-        "key": "ctrl+shift+d",
+        "key": "ctrl+shift+alt+d",
         "mac": "cmd+shift+d",
         "when": "editorHasSelection && resourceLangId =~ /^(python|javascript|typescript|javascriptreact|typescriptreact)$/"
       },

@@ -50,6 +50,10 @@ export class PythonRunner {
         );
     }
     
+    private sanitizeString(str: string): string {
+        return str.replace(/[\uD800-\uDFFF]/g, '');
+    }
+    
     private call(payload: object): Promise<unknown> {
         return new Promise((resolve, reject) => {
             if (!this.pythonPath) {
@@ -103,8 +107,8 @@ export class PythonRunner {
     async detectExternalVars(snippet: string, context: string = ''): Promise<DetectResult> {
         const result = await this.call({ 
             mode: 'detect', 
-            snippet,
-            context 
+            snippet: this.sanitizeString(snippet),
+            context: this.sanitizeString(context),
         }) as string[];
         return { externalVars: result };
     }
@@ -186,7 +190,7 @@ export class PythonRunner {
             
             proc.stdin.write(JSON.stringify({
                 mode: 'run',
-                snippet,
+                snippet: this.sanitizeString(snippet),
                 vars,
                 sandbox_dir: this.sandboxDir,
             }));
@@ -202,7 +206,13 @@ export class PythonRunner {
         
         return new Promise((resolve, reject) => {
             const systemPython = process.platform === 'win32' ? 'python' : 'python3';
+            console.log('Spawning env_detector with python:', process.platform === 'win32' ? 'python' : 'python3');
+            console.log('PATH:', process.env.PATH?.split(';').slice(0, 5));
+            console.log('Script:', detectorScript);
             const proc = cp.spawn(systemPython, [detectorScript]);
+            proc.stderr.on('data', (chunk) => {
+                console.log('env_detector stderr:', chunk.toString());
+            });
             
             const timer = setTimeout(() => {
                 proc.kill();
@@ -220,6 +230,7 @@ export class PythonRunner {
             
             proc.on('close', (code) => {
                 clearTimeout(timer);
+                
                 if (code !== 0) {
                     reject(new Error(`env_detector failed: ${stderr}`));
                     return;
@@ -244,7 +255,7 @@ export class PythonRunner {
     async extractContext(fileContent: string, snippetStartLine: number): Promise<string> {
         const result = await this.call({
             mode: 'context',
-            file_content: fileContent,
+            file_content: this.sanitizeString(fileContent),
             snippet_start_line: snippetStartLine,
         }) as string;
         return result;

@@ -25,7 +25,7 @@ def detect_conda_envs() -> list[dict]:
             name = os.path.basename(env_path)
             python = os.path.join(env_path, 'bin', 'python')
             if not os.path.exists(python):
-                python = os.path.join(env_path, 'Scripts', 'python.exe')  # windows
+                python = os.path.join(env_path, 'python.exe')  # windows
             if os.path.exists(python):
                 envs.append({'name': name, 'path': python, 'type': 'conda'})
         return envs

@@ -201,6 +201,32 @@ export class CodaPanel {
         break;
       }
       
+      case 'openFullValue': {
+        const label = message.label as string;
+        const value = message.value as unknown;
+        
+        let content: string;
+        if (typeof value === 'string') {
+          try {
+            content = JSON.stringify(JSON.parse(value), null, 2);
+          } catch {
+            content = value;
+          }
+        } else {
+          content = JSON.stringify(value, null, 2);
+        }
+        
+        const doc = await vscode.workspace.openTextDocument({
+          content,
+          language: 'json',
+        });
+        await vscode.window.showTextDocument(doc, {
+          preview: true,
+          viewColumn: vscode.ViewColumn.Beside,
+        });
+        break;
+      }
+      
       default:
       console.warn(`Coda: unknown message type ${message.type}`);
     }

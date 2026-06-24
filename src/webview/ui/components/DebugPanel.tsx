@@ -12,6 +12,26 @@ interface Props {
   tokens: TokenSet;
 }
 
+const LINE_LIMIT = 3;
+
+function truncate(value: unknown): { text: string; truncated: boolean } {
+  let str: string;
+  if (typeof value === 'string') {
+    try {
+      str = JSON.stringify(JSON.parse(value), null, 2);
+    } catch {
+      str = value;
+    }
+  } else {
+    str = JSON.stringify(value, null, 2);
+  }
+  const lines = str.split('\n');
+  if (lines.length <= LINE_LIMIT) {
+    return { text: str, truncated: false };
+  }
+  return { text: lines.slice(0, LINE_LIMIT).join('\n') + '\n...', truncated: true };
+}
+
 export function DebugPanel({ snippet, startLine, externalVars, snippetContext, vscode, tokens }: Props) {
   const [editedSnippet, setEditedSnippet] = useState(snippet);
   const [varValues, setVarValues] = useState<Record<string, string>>(
@@ -29,22 +49,8 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
     setVarValues(Object.fromEntries(externalVars.map(v => [v, ''])));
     setResult(null);
     setInputError(null);
+    setStreamPrints([]);
   }, [snippet, externalVars]);
-  
-  React.useEffect(() => {
-    const handler = (event: MessageEvent) => {
-      if (event.data.type === 'runResult') {
-        setResult(event.data.result);
-        setRunning(false);
-      }
-      if (event.data.type === 'runError') {
-        setResult({ success: false, error: event.data.error, steps: [] });
-        setRunning(false);
-      }
-    };
-    window.addEventListener('message', handler);
-    return () => window.removeEventListener('message', handler);
-  }, []);
   
   React.useEffect(() => {
     const handler = (event: MessageEvent) => {
@@ -74,6 +80,7 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
     setRunning(true);
     setResult(null);
     setStreamPrints([]);
+    
     const parsed: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(varValues)) {
       try { parsed[k] = JSON.parse(v); }
@@ -81,6 +88,10 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
     }
     const fullSnippet = snippetContext ? `${snippetContext}\n\n${editedSnippet}` : editedSnippet;
     vscode.postMessage({ type: 'runSnippet', snippet: fullSnippet, vars: parsed });
+  };
+  
+  const handleOpenFull = (label: string, value: unknown) => {
+    vscode.postMessage({ type: 'openFullValue', label, value });
   };
   
   if (!snippet) {
@@ -93,7 +104,7 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
   }
   
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflowY: 'auto' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', height: '100%' }}>
     {previewValue && (
       <PreviewModal value={previewValue} onClose={() => setPreviewValue(null)} tokens={tokens} />
     )}
@@ -101,34 +112,25 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
     {/* CONTEXT */}
     {snippetContext && (
       <Section label="CONTEXT" tokens={tokens} alt
+      maxHeight="15vh"
       right={
-        <span
-        onClick={() => setContextOpen(o => !o)}
-        style={{ fontSize: 9, color: tokens.textDimmed, cursor: 'pointer', userSelect: 'none' }}
-        >
+        <span onClick={() => setContextOpen(o => !o)} style={{ fontSize: 9, color: tokens.textDimmed, cursor: 'pointer', userSelect: 'none' }}>
         {contextOpen ? '▲' : '▼'}
         </span>
       }
       >
       {contextOpen && (
-        <pre style={{
-          margin: 0,
-          padding: '8px 10px',
-          background: tokens.bgCode,
-          borderRadius: 4,
-          fontSize: 10.5,
-          color: tokens.textSecondary,
-          lineHeight: 1.6,
-          whiteSpace: 'pre-wrap',
-          wordBreak: 'break-all',
-        }}>{snippetContext}</pre>
+        <pre style={{ margin: 0, padding: '8px 10px', background: tokens.bgCode, borderRadius: 4, fontSize: 10.5, color: tokens.textSecondary, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflowY: 'auto', maxHeight: '15vh' }}>
+        {snippetContext}
+        </pre>
       )}
       </Section>
     )}
     
     {/* INPUTS */}
     {externalVars.length > 0 && (
-      <Section label="INPUTS" tokens={tokens}>
+      <Section label="INPUTS" tokens={tokens} maxHeight="20vh">
+      <div style={{ overflowY: 'auto', maxHeight: '20vh' }}>
       {externalVars.map(v => (
         <div key={v} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${tokens.border}` }}>
         <span style={{ fontSize: 11.5, color: tokens.textDimmed }}>{v}</span>
@@ -142,11 +144,13 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
         />
         </div>
       ))}
+      </div>
       </Section>
     )}
     
     {/* SNIPPET */}
     <Section label="SNIPPET" tokens={tokens} alt hint={`line ${startLine + 1}`}>
+    <div style={{ overflowY: 'auto', maxHeight: '25vh' }}>
     <textarea
     style={{
       width: '100%',
@@ -162,13 +166,12 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
       lineHeight: '20px',
       outline: 'none',
       height: `${(editedSnippet.split('\n').length + 1) * 20}px`,
-      maxHeight: `${8 * 20}px`,
-      overflowY: 'auto',
     }}
     value={editedSnippet}
     onChange={e => setEditedSnippet(e.target.value)}
     spellCheck={false}
     />
+    </div>
     </Section>
     
     {/* RUN */}
@@ -200,12 +203,12 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
     </Section>
     
     {/* PRINTS */}
-    {(streamPrints.length > 0) && (
+    {streamPrints.length > 0 && (
       <Section label="PRINTS" tokens={tokens} alt>
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ overflowY: 'auto', maxHeight: '25vh', display: 'flex', flexDirection: 'column', gap: 4 }}>
       {streamPrints.map((line, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, fontSize: 11.5, fontFamily: 'var(--vscode-editor-font-family)' }}>
-        <span style={{ color: tokens.textDimmed }}>›</span>
+        <span style={{ color: tokens.textDimmed, flexShrink: 0 }}>›</span>
         <span style={{ color: tokens.textPrimary, wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}>{line}</span>
         </div>
       ))}
@@ -216,55 +219,68 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
     {/* OUTPUT */}
     {result && (
       <Section label="OUTPUT" tokens={tokens}>
+      <div style={{ overflowY: 'auto', maxHeight: '25vh' }}>
       {!result.success && (
-        <pre style={{ color: tokens.error, fontFamily: 'var(--vscode-editor-font-family)', fontSize: 11.5, margin: 0, whiteSpace: 'pre-wrap' }}>Error: {result.error}</pre>
+        <pre style={{ color: tokens.error, fontFamily: 'var(--vscode-editor-font-family)', fontSize: 11.5, margin: 0, whiteSpace: 'pre-wrap' }}>
+        error: {result.error}
+        </pre>
       )}
       {result.success && result.final_vars && (
-        Object.entries(result.final_vars).map(([k, v]) => (
-          <div key={k} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${tokens.border}` }}>
-          <span style={{ fontSize: 11.5, color: tokens.textDimmed }}>{k}</span>
-          {isSpecialValue(v)
-            ? <SpecialValueCell value={v} onPreview={setPreviewValue} tokens={tokens} />
-            : <span style={{ fontSize: 11.5, fontFamily: 'var(--vscode-editor-font-family)', color: tokens.accent, wordBreak: 'break-all' }}>{JSON.stringify(v)}</span>
-          }
-          </div>
-        ))
+        Object.entries(result.final_vars).map(([k, v]) => {
+          const { text, truncated } = truncate(v);
+          return (
+            <div key={k} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10, alignItems: 'start', padding: '8px 0', borderBottom: `1px solid ${tokens.border}` }}>
+            <span style={{ fontSize: 11.5, color: tokens.textDimmed, paddingTop: 2 }}>{k}</span>
+            <div>
+            {isSpecialValue(v)
+              ? <SpecialValueCell value={v} onPreview={setPreviewValue} tokens={tokens} />
+              : (
+                <div>
+                <pre style={{ margin: 0, fontSize: 11.5, fontFamily: 'var(--vscode-editor-font-family)', color: tokens.accent, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+                {text}
+                </pre>
+                {truncated && (
+                  <span
+                  onClick={() => handleOpenFull(k, v)}
+                  style={{ fontSize: 10.5, color: tokens.textSecondary, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
+                  >
+                  show full →
+                  </span>
+                )}
+                </div>
+              )
+            }
+            </div>
+            </div>
+          );
+        })
       )}
+      </div>
       </Section>
     )}
     </div>
   );
 }
 
-function Section({ label, hint, alt, right, tokens, children }: {
+function Section({ label, hint, alt, right, tokens, children, maxHeight }: {
   label?: string;
   hint?: string;
   alt?: boolean;
   right?: React.ReactNode;
   tokens: TokenSet;
   children?: React.ReactNode;
+  maxHeight?: string;
 }) {
   return (
-    <div style={{ background: tokens.bg, padding: '16px 20px' }}>
+    <div style={{ background: alt ? tokens.bgAlt : tokens.bg, padding: '16px 20px', flexShrink: 0 }}>
     {label && (
-      <div style={{ display: 'flex', alignItems: 'center', marginBottom: 12, gap: 10 }}>
-      <span style={{
-        fontSize: 11,
-        fontWeight: 700,
-        letterSpacing: '0.14em',
-        color: tokens.sectionLine,
-        whiteSpace: 'nowrap',
-      }}>
-      {label}
-      {hint && <span style={{ fontSize: 9, color: tokens.textSecondary, fontWeight: 400, marginLeft: 8, opacity: 0.5}}>{hint}</span>}
-      </span>
-      {/* The extending line */}
-      <div style={{
-        flex: 1,
-        height: 1,
-        background: tokens.sectionLine,
-      }} />
-      {right}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, flex: 1 }}>
+      <span style={{ fontSize: 11, fontWeight: 700, letterSpacing: '0.14em', color: tokens.sectionLine, whiteSpace: 'nowrap' }}>{label}</span>
+      {hint && <span style={{ fontSize: 9.5, color: tokens.textSecondary }}>{hint}</span>}
+      <div style={{ flex: 1, height: 1, background: tokens.sectionLine, opacity: 0.3 }} />
+      </div>
+      {right && <div style={{ marginLeft: 10 }}>{right}</div>}
       </div>
     )}
     {children}

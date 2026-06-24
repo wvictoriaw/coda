@@ -58,11 +58,14 @@ def main():
         print(json.dumps(result, cls=EnhancedEncoder), flush=True)
     
     elif mode == 'context':
-        result = extract_context(
-            payload['file_content'],
-            payload['snippet_start_line']
-        )
-        print(json.dumps(result))
+        try:
+            result = extract_context(
+                payload['file_content'],
+                payload['snippet_start_line']
+            )
+            print(json.dumps(result))
+        except (UnicodeEncodeError, UnicodeDecodeError):
+            print(json.dumps(''))
 
     else:
         print(json.dumps({'error': f"Unknown mode: {mode}"}))
