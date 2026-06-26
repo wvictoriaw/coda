@@ -65,6 +65,11 @@ export class PythonRunner {
             
             const proc = cp.spawn(this.pythonPath, [this.bridgeScript], {
                 cwd: workspaceRoot,
+                env: {
+                    ...process.env,
+                    PYTHONIOENCODING: 'utf-8',
+                    PYTHONUTF8: '1',
+                }
             });
             
             const timer = setTimeout(() => {
@@ -116,6 +121,7 @@ export class PythonRunner {
     async runSnippet(
         snippet: string,
         vars: Record<string, unknown>,
+        context: string = '',
         onPrint: (line: string) => void
     ): Promise<RunResult> {
         if (!this.sandboxDir) {
@@ -131,6 +137,11 @@ export class PythonRunner {
             const workspaceRoot = vscode.workspace.workspaceFolders?.[0].uri.fsPath;
             const proc = cp.spawn(this.pythonPath, [this.bridgeScript], {
                 cwd: workspaceRoot,
+                env: {
+                    ...process.env,
+                    PYTHONIOENCODING: 'utf-8',
+                    PYTHONUTF8: '1',
+                }
             });
             
             const timer = setTimeout(() => {
@@ -193,6 +204,8 @@ export class PythonRunner {
                 snippet: this.sanitizeString(snippet),
                 vars,
                 sandbox_dir: this.sandboxDir,
+                workspace_root: workspaceRoot,
+                context: this.sanitizeString(context)
             }));
             proc.stdin.end();
         });

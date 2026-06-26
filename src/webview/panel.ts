@@ -84,6 +84,10 @@ export class CodaPanel {
   public postMessage(message: unknown) {
     this.panel.webview.postMessage(message);
   }
+
+  public reveal() {
+  this.panel.reveal(vscode.ViewColumn.Beside);
+}
   
   // Handle messages coming from the React UI
   private async handleMessage(message: { type: string; [key: string]: unknown }) {
@@ -93,10 +97,12 @@ export class CodaPanel {
       case 'runSnippet': {
         const snippet = message.snippet as string;
         const vars = message.vars as Record<string, unknown>;
+        const context = message.context as string ?? '';
         try {
           const result = await this.runner.runSnippet(
             snippet,
             vars,
+            context,
             (line: string) => {
               this.panel.webview.postMessage({
                 type: 'streamPrint',

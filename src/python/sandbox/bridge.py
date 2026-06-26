@@ -9,6 +9,11 @@ from enum import Enum
 
 from context_extractor import extract_context
 
+if sys.platform == 'win32':
+    sys.stdin.reconfigure(encoding='utf-8')
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+
 # --- 1. Bootstrap the Vendor Environment ---
 # We calculate the path to the 'vendor' folder relative to this file
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -52,7 +57,9 @@ def main():
             payload['snippet'],
             payload.get('vars', {}),
             payload['sandbox_dir'],
-            on_print=stream_print
+            on_print=stream_print,
+            workspace_root=payload.get('workspace_root'),
+            context=payload.get('context', '')
         )
         result['type'] = 'result'
         print(json.dumps(result, cls=EnhancedEncoder), flush=True)

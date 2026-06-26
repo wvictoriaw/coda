@@ -87,7 +87,12 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
       catch { parsed[k] = v; }
     }
     const fullSnippet = snippetContext ? `${snippetContext}\n\n${editedSnippet}` : editedSnippet;
-    vscode.postMessage({ type: 'runSnippet', snippet: fullSnippet, vars: parsed });
+    vscode.postMessage({
+      type: 'runSnippet',
+      snippet: editedSnippet,
+      context: snippetContext,
+      vars: parsed,
+    });
   };
   
   const handleOpenFull = (label: string, value: unknown) => {
@@ -98,7 +103,7 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
     return (
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100%', gap: 8 }}>
       <span style={{ fontSize: 11.5, color: tokens.textDimmed, letterSpacing: '0.05em' }}>select a python snippet</span>
-      <code style={{ fontSize: 11.5, color: tokens.textSecondary, background: tokens.bgAlt, padding: '3px 8px', borderRadius: 3, border: `1px solid ${tokens.border}` }}>⌘ shift D</code>
+      <code style={{ fontSize: 11.5, color: tokens.textSecondary, background: tokens.bgAlt, padding: '3px 8px', borderRadius: 3, border: `1px solid ${tokens.border}` }}>ctrl/⌘ shift C</code>
       </div>
     );
   }

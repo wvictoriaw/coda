@@ -7,9 +7,11 @@ def extract_context(file_content: str, snippet_start_line: int) -> str:
     extract all imports and top-level definitions that appear before that line.
     Returns them as a runnable string to prepend to the snippet.
     """
+    import sys
     try:
         tree = ast.parse(file_content)
     except SyntaxError:
+        print(f"AST parse failed: {e}", file=sys.stderr)
         return ''
 
     lines = file_content.splitlines()

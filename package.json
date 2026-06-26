@@ -19,12 +19,8 @@
   "contributes": {
     "commands": [
       {
-        "command": "coda.openPanel",
-        "title": "Coda: Open Panel"
-      },
-      {
-        "command": "coda.debugSnippet",
-        "title": "Coda: Debug Selected Snippet"
+        "command": "coda.smartOpen",
+        "title": "Coda: Open / Debug"
       },
       {
         "command": "coda.generateHere",
@@ -34,21 +30,16 @@
     "menus": {
       "editor/context": [
         {
-          "command": "coda.debugSnippet",
+          "command": "coda.smartOpen",
           "when": "editorHasSelection && resourceLangId =~ /^(python|javascript|typescript|javascriptreact|typescriptreact)$/",
           "group": "coda"
         }
       ]
+      
     },
     "keybindings": [
       {
-        "command": "coda.debugSnippet",
-        "key": "ctrl+shift+alt+d",
-        "mac": "cmd+shift+d",
-        "when": "editorHasSelection && resourceLangId =~ /^(python|javascript|typescript|javascriptreact|typescriptreact)$/"
-      },
-      {
-        "command": "coda.openPanel",
+        "command": "coda.smartOpen",
         "key": "ctrl+shift+c",
         "mac": "cmd+shift+c"
       }

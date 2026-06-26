@@ -31,9 +31,12 @@ class PipeWriter(io.TextIOBase):
             self.buf = ''
 
 
-def _isolated_execution(conn, snippet, injected_vars, sandbox_dir):
+def _isolated_execution(conn, snippet, injected_vars, sandbox_dir, workspace_root=None, context=''):
     os.makedirs(sandbox_dir, exist_ok=True)
     install(sandbox_dir)
+
+    if workspace_root and workspace_root not in sys.path:
+        sys.path.insert(0, workspace_root)
 
     tracer_fn, captured_steps = make_tracer()
     namespace = dict(injected_vars)
@@ -41,13 +44,22 @@ def _isolated_execution(conn, snippet, injected_vars, sandbox_dir):
     old_stdout = sys.stdout
     sys.stdout = PipeWriter(conn)
 
+    # Run context first without tracing
+    if context:
+        try:
+            exec(compile(context, '<context>', 'exec'), namespace)
+        except Exception:
+            pass  # context errors are non-fatal
+
+    # Snapshot after context, before snippet
+    pre_exec_snapshot = set(namespace.keys())
+
     try:
         code = compile(snippet, '<snippet>', 'exec')
         sys.settrace(tracer_fn)
         exec(code, namespace)
         sys.settrace(None)
 
-        # Flush any remaining buffered output
         sys.stdout.flush()
 
         conn.send({
@@ -60,6 +72,10 @@ def _isolated_execution(conn, snippet, injected_vars, sandbox_dir):
                 if not k.startswith('_')
                 and not isinstance(v, types.ModuleType)
                 and not isinstance(v, types.FunctionType)
+                and (
+                    k in injected_vars
+                    or k not in pre_exec_snapshot
+                )
             }
         })
     except Exception as e:
@@ -77,11 +93,11 @@ def _isolated_execution(conn, snippet, injected_vars, sandbox_dir):
         uninstall()
 
 
-def run(snippet: str, injected_vars: dict, sandbox_dir: str, on_print=None) -> dict:
+def run(snippet: str, injected_vars: dict, sandbox_dir: str, workspace_root=None, on_print=None, context='') -> dict:
     parent_conn, child_conn = multiprocessing.Pipe()
     p = multiprocessing.Process(
         target=_isolated_execution,
-        args=(child_conn, snippet, injected_vars, sandbox_dir)
+        args=(child_conn, snippet, injected_vars, sandbox_dir, workspace_root, context)
     )
     p.start()
 
