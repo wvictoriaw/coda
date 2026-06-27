@@ -15,6 +15,10 @@ interface Props {
 const LINE_LIMIT = 3;
 
 function truncate(value: unknown): { text: string; truncated: boolean } {
+  const inline = JSON.stringify(value);
+  if (inline.length <= 80 && !inline.includes('\n')) {
+    return { text: inline, truncated: false };
+  }
   let str: string;
   if (typeof value === 'string') {
     try {
