@@ -129,7 +129,19 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
       }
       >
       {contextOpen && (
-        <pre style={{ margin: 0, padding: '8px 10px', background: tokens.bgCode, borderRadius: 4, fontSize: 10.5, color: tokens.textSecondary, lineHeight: 1.6, whiteSpace: 'pre-wrap', wordBreak: 'break-all', overflowY: 'auto', maxHeight: '15vh' }}>
+        <pre style={{
+          margin: 0,
+          padding: '8px 10px',
+          background: tokens.bgCode,
+          borderRadius: 4,
+          fontSize: 10.5,
+          color: tokens.textSecondary,
+          lineHeight: 1.6,
+          whiteSpace: 'pre-wrap',
+          wordBreak: 'break-all',
+          overflowY: 'auto',
+          maxHeight: '20vh',
+        }}>
         {snippetContext}
         </pre>
       )}
@@ -138,28 +150,56 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
     
     {/* INPUTS */}
     {externalVars.length > 0 && (
-      <Section label="INPUTS" tokens={tokens} maxHeight="20vh">
-      <div style={{ overflowY: 'auto', maxHeight: '20vh' }}>
+      <Section label="INPUTS" tokens={tokens}>
       {externalVars.map(v => (
-        <div key={v} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10, alignItems: 'center', padding: '8px 0', borderBottom: `1px solid ${tokens.border}` }}>
-        <span style={{ fontSize: 11.5, color: tokens.textDimmed }}>{v}</span>
+        <div key={v} style={{
+          display: 'grid',
+          gridTemplateColumns: '120px 1fr',
+          gap: 10,
+          alignItems: 'start',
+          padding: '8px 0',
+          borderBottom: `1px solid ${tokens.border}`
+        }}>
+        <span style={{
+          fontSize: 11.5,
+          color: tokens.textDimmed,
+          paddingTop: 5,
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+          whiteSpace: 'nowrap',
+        }}>
+        {v}
+        </span>
         <textarea
-        style={{ background: tokens.bgInput, border: `1px solid ${tokens.border}`, borderRadius: 3, padding: '4px 8px', fontSize: 11.5, color: tokens.textPrimary, fontFamily: 'var(--vscode-editor-font-family)', width: '100%', boxSizing: 'border-box', resize: 'none', outline: 'none', lineHeight: 1.5, wordBreak: 'break-all', whiteSpace: 'pre-wrap' }}
+        style={{
+          background: tokens.bgInput,
+          border: `1px solid ${tokens.border}`,
+          borderRadius: 3,
+          padding: '4px 8px',
+          fontSize: 11.5,
+          color: tokens.textPrimary,
+          fontFamily: 'var(--vscode-editor-font-family)',
+          width: '100%',
+          boxSizing: 'border-box',
+          resize: 'none',
+          outline: 'none',
+          lineHeight: 1.5,
+          wordBreak: 'break-all',
+          whiteSpace: 'pre-wrap',
+        }}
         value={varValues[v] ?? ''}
         onChange={e => setVarValues(prev => ({ ...prev, [v]: e.target.value }))}
-        placeholder="value or JSON"
+        placeholder="value or expression"
         spellCheck={false}
-        rows={1}
+        rows={2}
         />
         </div>
       ))}
-      </div>
       </Section>
     )}
     
     {/* SNIPPET */}
     <Section label="SNIPPET" tokens={tokens} alt hint={`line ${startLine + 1}`}>
-    <div style={{ overflowY: 'auto', maxHeight: '25vh' }}>
     <textarea
     style={{
       width: '100%',
@@ -180,7 +220,6 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
     onChange={e => setEditedSnippet(e.target.value)}
     spellCheck={false}
     />
-    </div>
     </Section>
     
     {/* RUN */}
@@ -214,7 +253,7 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
     {/* PRINTS */}
     {streamPrints.length > 0 && (
       <Section label="PRINTS" tokens={tokens} alt>
-      <div style={{ overflowY: 'auto', maxHeight: '25vh', display: 'flex', flexDirection: 'column', gap: 4 }}>
+      <div style={{ overflowY: 'auto', maxHeight: '30vh', display: 'flex', flexDirection: 'column', gap: 4 }}>
       {streamPrints.map((line, i) => (
         <div key={i} style={{ display: 'flex', gap: 8, fontSize: 11.5, fontFamily: 'var(--vscode-editor-font-family)' }}>
         <span style={{ color: tokens.textDimmed, flexShrink: 0 }}>›</span>
@@ -228,7 +267,6 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
     {/* OUTPUT */}
     {result && (
       <Section label="OUTPUT" tokens={tokens}>
-      <div style={{ overflowY: 'auto', maxHeight: '25vh' }}>
       {!result.success && (
         <pre style={{ color: tokens.error, fontFamily: 'var(--vscode-editor-font-family)', fontSize: 11.5, margin: 0, whiteSpace: 'pre-wrap' }}>
         error: {result.error}
@@ -238,7 +276,7 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
         Object.entries(result.final_vars).map(([k, v]) => {
           const { text, truncated } = truncate(v);
           return (
-            <div key={k} style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: 10, alignItems: 'start', padding: '8px 0', borderBottom: `1px solid ${tokens.border}` }}>
+            <div key={k} style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: 10, alignItems: 'start', padding: '8px 0', borderBottom: `1px solid ${tokens.border}` }}>
             <span style={{ fontSize: 11.5, color: tokens.textDimmed, paddingTop: 2 }}>{k}</span>
             <div>
             {isSpecialValue(v)
@@ -264,7 +302,6 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
           );
         })
       )}
-      </div>
       </Section>
     )}
     </div>

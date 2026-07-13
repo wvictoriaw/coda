@@ -1,12 +1,14 @@
 import ast
 import builtins
+import textwrap
 
 
 def detect_external_vars(snippet: str, context: str = '') -> list[str]:
     try:
+        snippet = textwrap.dedent(snippet)
         tree = ast.parse(snippet)
-    except SyntaxError:
-        return []
+    except SyntaxError as e:
+        raise
 
     # Build context_assigned — everything defined in the context block
     context_assigned = set()

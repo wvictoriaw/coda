@@ -7,6 +7,7 @@ import multiprocessing
 import types
 from interceptors import install, uninstall, get_written_files
 from tracer import make_tracer, _serialize
+import textwrap
 
 class PipeWriter(io.TextIOBase):
     """
@@ -30,8 +31,24 @@ class PipeWriter(io.TextIOBase):
             self.conn.send({'type': 'print', 'line': self.buf})
             self.buf = ''
 
+def resolve_vars(injected_vars: dict, namespace: dict) -> dict:
+    """
+    Try to evaluate string values as Python expressions.
+    Falls back to the raw string if evaluation fails.
+    """
+    resolved = {}
+    for k, v in injected_vars.items():
+        if isinstance(v, str):
+            try:
+                resolved[k] = eval(v, namespace)
+            except Exception:
+                resolved[k] = v
+        else:
+            resolved[k] = v
+    return resolved
 
 def _isolated_execution(conn, snippet, injected_vars, sandbox_dir, workspace_root=None, context=''):
+    snippet = textwrap.dedent(snippet)
     os.makedirs(sandbox_dir, exist_ok=True)
     install(sandbox_dir)
 
@@ -51,6 +68,8 @@ def _isolated_execution(conn, snippet, injected_vars, sandbox_dir, workspace_roo
         except Exception:
             pass  # context errors are non-fatal
 
+    namespace.update(resolve_vars(injected_vars, namespace))
+    
     # Snapshot after context, before snippet
     pre_exec_snapshot = set(namespace.keys())
 

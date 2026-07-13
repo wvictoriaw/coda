@@ -23,6 +23,7 @@ export interface RunResult {
 
 export interface DetectResult {
     externalVars: string[];
+    syntaxError?: string;
 }
 
 export class PythonRunner {
@@ -110,11 +111,15 @@ export class PythonRunner {
     }
     
     async detectExternalVars(snippet: string, context: string = ''): Promise<DetectResult> {
+        console.log('detecting vars, snippet length:', snippet.length, 'context length:', context.length);
         const result = await this.call({ 
             mode: 'detect', 
             snippet: this.sanitizeString(snippet),
             context: this.sanitizeString(context),
-        }) as string[];
+        }) as string[] | { __coda_syntax_error: string };
+        if (!Array.isArray(result) && '__coda_syntax_error' in result) {
+            return { externalVars: [], syntaxError: result.__coda_syntax_error };
+        }
         return { externalVars: result };
     }
     

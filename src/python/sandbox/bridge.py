@@ -43,11 +43,14 @@ def main():
     mode = payload.get('mode', 'run')
 
     if mode == 'detect':
-        result = detect_external_vars(
-            payload['snippet'],
-            payload.get('context', '')
-        )
-        print(json.dumps(result))
+        try:
+            result = detect_external_vars(
+                payload['snippet'],
+                payload.get('context', '')
+            )
+            print(json.dumps(result))
+        except SyntaxError as e:
+            print(json.dumps({'__coda_syntax_error': f"{e.msg} (line {e.lineno})"}))
 
     elif mode == 'run':
         def stream_print(line):
