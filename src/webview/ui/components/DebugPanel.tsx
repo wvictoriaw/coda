@@ -47,6 +47,8 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
   const [previewValue, setPreviewValue] = useState<SpecialValue | null>(null);
   const [inputError, setInputError] = useState<string | null>(null);
   const [streamPrints, setStreamPrints] = useState<string[]>([]);
+  const [inspectValue, setInspectValue] = useState<{ label: string; value: unknown } | null>(null);
+  
   
   React.useEffect(() => {
     setEditedSnippet(snippet);
@@ -116,6 +118,25 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
     <div style={{ display: 'flex', flexDirection: 'column', overflowY: 'auto', height: '100%' }}>
     {previewValue && (
       <PreviewModal value={previewValue} onClose={() => setPreviewValue(null)} tokens={tokens} />
+    )}
+    {inspectValue && (
+      <InspectModal
+      label={inspectValue.label}
+      value={inspectValue.value}
+      snippet={editedSnippet}
+      vars={(() => {
+        const parsed: Record<string, unknown> = {};
+        for (const [k, v] of Object.entries(varValues)) {
+          try { parsed[k] = JSON.parse(v); }
+          catch { parsed[k] = v; }
+        }
+        return parsed;
+      })()}
+      snippetContext={snippetContext}
+      vscode={vscode}
+      onClose={() => setInspectValue(null)}
+      tokens={tokens}
+      />
     )}
     
     {/* CONTEXT */}
@@ -288,10 +309,10 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
                 </pre>
                 {truncated && (
                   <span
-                  onClick={() => handleOpenFull(k, v)}
+                  onClick={() => setInspectValue({ label: k, value: v })}
                   style={{ fontSize: 10.5, color: tokens.textSecondary, cursor: 'pointer', textDecoration: 'underline', textDecorationStyle: 'dotted' }}
                   >
-                  show full →
+                  inspect →
                   </span>
                 )}
                 </div>
@@ -304,6 +325,152 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
       )}
       </Section>
     )}
+    </div>
+  );
+}
+
+interface ProbeEntry {
+  expression: string;
+  result: unknown;
+  error?: string;
+}
+
+function InspectModal({ label, value, snippet, vars, snippetContext, vscode, onClose, tokens }: {
+  label: string;
+  value: unknown;
+  snippet: string;
+  vars: Record<string, unknown>;
+  snippetContext: string;
+  vscode: ReturnType<typeof acquireVsCodeApi>;
+  onClose: () => void;
+  tokens: TokenSet;
+}) {
+  const [expression, setExpression] = useState('');
+  const [probeHistory, setProbeHistory] = useState<ProbeEntry[]>([]);
+  const [probing, setProbing] = useState(false);
+  
+  React.useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data.type === 'probeResult') {
+        const { result } = event.data;
+        setProbeHistory(prev => {
+          const last = prev[prev.length - 1];
+          if (!last) return prev;
+          return [
+            ...prev.slice(0, -1),
+            { ...last, result: result.value, error: result.error }
+          ];
+        });
+        setProbing(false);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+  
+  const handleEval = () => {
+    if (!expression.trim()) return;
+    setProbing(true);
+    setProbeHistory(prev => [...prev, { expression, result: undefined }]);
+    setExpression('');
+    vscode.postMessage({
+      type: 'probeExpression',
+      snippet,
+      vars,
+      context: snippetContext,
+      expression,
+    });
+  };
+  
+  const handleSave = () => {
+    vscode.postMessage({ type: 'openFullValue', label, value });
+  };
+  
+  const { text } = truncate(value);
+  
+  return (
+    <div
+    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.3)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 }}
+    onClick={onClose}
+    >
+    <div
+    style={{ background: tokens.bg, border: `1px solid ${tokens.border}`, borderRadius: 6, width: '90%', maxHeight: '80vh', display: 'flex', flexDirection: 'column', overflow: 'hidden', boxShadow: '0 8px 24px rgba(0,0,0,0.15)' }}
+    onClick={e => e.stopPropagation()}
+    >
+    {/* Header */}
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', borderBottom: `1px solid ${tokens.border}`, background: tokens.bgAlt, flexShrink: 0 }}>
+    <span style={{ fontSize: 11.5, fontWeight: 600, color: tokens.textPrimary, letterSpacing: '0.05em' }}>{label}</span>
+    <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+    <button
+    onClick={handleSave}
+    style={{ background: 'transparent', border: `1px solid ${tokens.border}`, borderRadius: 3, padding: '3px 10px', fontSize: 9.5, color: tokens.textSecondary, cursor: 'pointer', letterSpacing: '0.05em', fontFamily: 'var(--vscode-editor-font-family)' }}
+    >
+    save to file
+    </button>
+    <button
+    onClick={onClose}
+    style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: tokens.textSecondary, fontSize: 12, padding: '0 4px' }}
+    >
+    ✕
+    </button>
+    </div>
+    </div>
+    
+    {/* Full value */}
+    <div style={{ padding: 16, overflowY: 'auto', flexShrink: 0, maxHeight: '35vh' }}>
+    <pre style={{ margin: 0, fontSize: 11.5, fontFamily: 'var(--vscode-editor-font-family)', color: tokens.accent, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+    {text}
+    </pre>
+    </div>
+    
+    {/* Probe history */}
+    {probeHistory.length > 0 && (
+      <div style={{ borderTop: `1px solid ${tokens.border}`, padding: '12px 16px', overflowY: 'auto', maxHeight: '25vh', display: 'flex', flexDirection: 'column', gap: 10 }}>
+      {probeHistory.map((entry, i) => (
+        <div key={i} style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
+        <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <span style={{ fontSize: 10.5, color: tokens.textDimmed, flexShrink: 0 }}>›</span>
+        <code style={{ fontSize: 11, color: tokens.textSecondary, fontFamily: 'var(--vscode-editor-font-family)' }}>{entry.expression}</code>
+        </div>
+        {entry.result !== undefined && (
+          <pre style={{ margin: 0, marginLeft: 16, fontSize: 11, fontFamily: 'var(--vscode-editor-font-family)', color: tokens.accent, whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+          {JSON.stringify(entry.result, null, 2)}
+          </pre>
+        )}
+        {entry.error && (
+          <pre style={{ margin: 0, marginLeft: 16, fontSize: 11, color: tokens.error, whiteSpace: 'pre-wrap' }}>
+          error: {entry.error}
+          </pre>
+        )}
+        {entry.result === undefined && !entry.error && (
+          <span style={{ marginLeft: 16, fontSize: 11, color: tokens.textDimmed }}>evaluating...</span>
+        )}
+        </div>
+      ))}
+      </div>
+    )}
+    
+    {/* Expression input */}
+    <div style={{ borderTop: `1px solid ${tokens.border}`, padding: '10px 16px', display: 'flex', gap: 8, alignItems: 'center', flexShrink: 0, background: tokens.bgAlt }}>
+    <span style={{ fontSize: 11, color: tokens.textDimmed, flexShrink: 0 }}>›</span>
+    <input
+    value={expression}
+    onChange={e => setExpression(e.target.value)}
+    onKeyDown={e => e.key === 'Enter' && !probing && handleEval()}
+    placeholder="expression e.g. x[:3]"
+    spellCheck={false}
+    autoFocus
+    style={{ flex: 1, background: 'transparent', border: 'none', outline: 'none', fontSize: 11.5, color: tokens.textPrimary, fontFamily: 'var(--vscode-editor-font-family)' }}
+    />
+    <button
+    onClick={handleEval}
+    disabled={probing || !expression.trim()}
+    style={{ background: 'transparent', border: `1px solid ${tokens.accent}`, borderRadius: 3, padding: '3px 10px', fontSize: 9.5, color: tokens.accent, cursor: probing ? 'not-allowed' : 'pointer', opacity: probing ? 0.5 : 1, letterSpacing: '0.05em', fontFamily: 'var(--vscode-editor-font-family)' }}
+    >
+    {probing ? '...' : 'eval'}
+    </button>
+    </div>
+    </div>
     </div>
   );
 }

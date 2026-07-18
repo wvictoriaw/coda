@@ -278,4 +278,29 @@ export class PythonRunner {
         }) as string;
         return result;
     }
+    
+    async probeExpression(
+        snippet: string,
+        vars: Record<string, unknown>,
+        context: string,
+        expression: string
+    ): Promise<{ value?: unknown; error?: string }> {
+        if (!this.sandboxDir) {
+            throw new Error('No workspace folder found');
+        }
+        const result = await this.call({
+            mode: 'probe',
+            snippet: this.sanitizeString(snippet),
+            vars,
+            sandbox_dir: this.sandboxDir,
+            workspace_root: vscode.workspace.workspaceFolders?.[0].uri.fsPath,
+            context: this.sanitizeString(context),
+            expression: this.sanitizeString(expression),
+        }) as { __coda_probe_value?: unknown; __coda_probe_error?: string };
+        
+        if ('__coda_probe_error' in result) {
+            return { error: result.__coda_probe_error };
+        }
+        return { value: result.__coda_probe_value };
+    }
 }

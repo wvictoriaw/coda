@@ -1,4 +1,6 @@
+from ast import expr
 import sys
+import textwrap
 print(f"Python: {sys.version}", file=sys.stderr)
 print(f"Args: {sys.argv}", file=sys.stderr)
 
@@ -76,6 +78,49 @@ def main():
             print(json.dumps(result))
         except (UnicodeEncodeError, UnicodeDecodeError):
             print(json.dumps(''))
+            
+    elif mode == 'probe':
+        def stream_print(line):
+            pass  # discard prints during probe
+
+        
+        # Run the full snippet to restore state
+        probe_result = run(
+            payload['snippet'],
+            payload.get('vars', {}),
+            payload['sandbox_dir'],
+            on_print=stream_print,
+            workspace_root=payload.get('workspace_root'),
+            context=payload.get('context', '')
+        )
+
+        if not probe_result.get('success'):
+            print(json.dumps({'__coda_probe_error': probe_result.get('error', 'snippet failed')}))
+        else:
+            # Evaluate the expression against the final namespace
+            namespace = probe_result.get('final_vars', {})
+            # Re-run context and snippet to get live objects
+            expr = payload.get('expression', '')
+            snippet = payload['snippet']
+            lines = [l for l in snippet.splitlines() if l.strip()]
+            clean_snippet = textwrap.dedent('\n'.join(lines))
+            try:
+                probe_run = run(
+                    clean_snippet + f"\n__coda_probe_result__ = {expr}",
+                    payload.get('vars', {}),
+                    payload['sandbox_dir'],
+                    on_print=stream_print,
+                    workspace_root=payload.get('workspace_root'),
+                    context=payload.get('context', '')
+                )
+                if probe_run.get('success'):
+                    val = probe_run.get('final_vars', {}).get('__coda_probe_result__')
+                    print(f"probe value: {val}", file=sys.stderr)
+                    print(json.dumps({'__coda_probe_value': val}))
+                else:
+                    print(json.dumps({'__coda_probe_error': probe_run.get('error', 'eval failed')}))
+            except Exception as e:
+                print(json.dumps({'__coda_probe_error': str(e)}))
 
     else:
         print(json.dumps({'error': f"Unknown mode: {mode}"}))

@@ -48,7 +48,8 @@ def resolve_vars(injected_vars: dict, namespace: dict) -> dict:
     return resolved
 
 def _isolated_execution(conn, snippet, injected_vars, sandbox_dir, workspace_root=None, context=''):
-    snippet = textwrap.dedent(snippet)
+    lines = [l for l in snippet.splitlines() if l.strip()]
+    snippet = textwrap.dedent('\n'.join(lines))
     os.makedirs(sandbox_dir, exist_ok=True)
     install(sandbox_dir)
 
@@ -88,7 +89,8 @@ def _isolated_execution(conn, snippet, injected_vars, sandbox_dir, workspace_roo
             'files_written': get_written_files(),
             'final_vars': {
                 k: _serialize(v) for k, v in namespace.items()
-                if not k.startswith('_')
+                if (k == '__coda_probe_result__')
+                or not k.startswith('_')
                 and not isinstance(v, types.ModuleType)
                 and not isinstance(v, types.FunctionType)
                 and (

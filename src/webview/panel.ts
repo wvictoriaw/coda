@@ -84,10 +84,10 @@ export class CodaPanel {
   public postMessage(message: unknown) {
     this.panel.webview.postMessage(message);
   }
-
+  
   public reveal() {
-  this.panel.reveal(vscode.ViewColumn.Beside);
-}
+    this.panel.reveal(vscode.ViewColumn.Beside);
+  }
   
   // Handle messages coming from the React UI
   private async handleMessage(message: { type: string; [key: string]: unknown }) {
@@ -230,6 +230,24 @@ export class CodaPanel {
           preview: true,
           viewColumn: vscode.ViewColumn.Beside,
         });
+        break;
+      }
+      
+      case 'probeExpression': {
+        const msg = message as unknown as {
+          type: string;
+          snippet: string;
+          vars: Record<string, unknown>;
+          context: string;
+          expression: string;
+        };
+        try {
+          const result = await this.runner.probeExpression(msg.snippet, msg.vars, msg.context, msg.expression);
+          this.panel.webview.postMessage({ type: 'probeResult', result });
+        } catch (err) {
+          const error = err instanceof Error ? err.message : String(err);
+          this.panel.webview.postMessage({ type: 'probeResult', result: { error } });
+        }
         break;
       }
       
