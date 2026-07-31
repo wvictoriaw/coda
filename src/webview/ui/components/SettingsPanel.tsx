@@ -2,7 +2,6 @@ import * as React from 'react';
 import { useState, useEffect } from 'react';
 import { TokenSet } from './tokens';
 
-
 interface Env {
   name: string;
   path: string;
@@ -17,13 +16,36 @@ interface Props {
   onThemeChange: (theme: 'light' | 'dark' | null) => void;
 }
 
+// Section defined outside to prevent remount on every keystroke
+function Section({ label, children, tokens }: {
+  label: string;
+  children: React.ReactNode;
+  tokens: TokenSet;
+}) {
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+    <span style={{
+      fontSize: 9,
+      fontWeight: 700,
+      letterSpacing: '0.12em',
+      color: tokens.textSecondary,
+    }}>
+    {label}
+    </span>
+    {children}
+    </div>
+  );
+}
+
 export function SettingsPanel({ currentPath, vscode, tokens, theme, onThemeChange }: Props) {
   const [envs, setEnvs] = useState<Env[]>([]);
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<string | null>(currentPath);
   const [open, setOpen] = useState(false);
   const [saved, setSaved] = useState(false);
-  
+  const [folderPath, setFolderPath] = useState('');
+  const [folderStatus, setFolderStatus] = useState<{ ok: boolean; message: string } | null>(null);
+  const [folderLoading, setFolderLoading] = useState(false);
   
   useEffect(() => {
     setSelected(currentPath);
@@ -35,6 +57,21 @@ export function SettingsPanel({ currentPath, vscode, tokens, theme, onThemeChang
       if (msg.type === 'environmentsDetected') {
         setEnvs(msg.envs);
         setLoading(false);
+      }
+      if (msg.type === 'folderDetectResult') {
+        setFolderLoading(false);
+        if (msg.error || !msg.result) {
+          setFolderStatus({ ok: false, message: msg.error ?? 'no python environment found in that folder' });
+        } else if (msg.result.type === 'conda_base') {
+          setEnvs(prev => [...prev, ...msg.result.envs]);
+          setFolderStatus({ ok: true, message: `found ${msg.result.envs.length} environments` });
+        } else {
+          setEnvs(prev => [...prev, msg.result]);
+          setSelected(msg.result.path);
+          vscode.postMessage({ type: 'selectEnvironment', pythonPath: msg.result.path });
+          setFolderStatus({ ok: true, message: `loaded: ${msg.result.name}` });
+          setSaved(true);
+        }
       }
     };
     window.addEventListener('message', handler);
@@ -54,25 +91,16 @@ export function SettingsPanel({ currentPath, vscode, tokens, theme, onThemeChang
     setSaved(true);
   };
   
+  const handleLoad = () => {
+    if (!folderPath.trim()) return;
+    setFolderLoading(true);
+    setFolderStatus(null);
+    vscode.postMessage({ type: 'detectFromFolder', folderPath: folderPath.trim() });
+  };
+  
   const selectedEnv = envs.find(e => e.path === selected);
   
-  function Section({ label, children }: { label: string; children: React.ReactNode }) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-      <span style={{
-        fontSize: 9,
-        fontWeight: 700,
-        letterSpacing: '0.12em',
-        color: tokens.textSecondary,
-      }}>
-      {label}
-      </span>
-      {children}
-      </div>
-    );
-  }
-  
-  const styles: Record<string, React.CSSProperties> = {
+  const s: Record<string, React.CSSProperties> = {
     container: {
       display: 'flex',
       flexDirection: 'column',
@@ -115,7 +143,33 @@ export function SettingsPanel({ currentPath, vscode, tokens, theme, onThemeChang
       fontSize: 11,
       cursor: 'pointer',
       letterSpacing: '0.08em',
-      alignSelf: 'flex-start',
+      alignSelf: 'flex-start' as const,
+    },
+    folderRow: {
+      display: 'flex',
+      gap: 6,
+    },
+    folderInput: {
+      flex: 1,
+      background: tokens.bgInput,
+      border: `1px solid ${tokens.border}`,
+      borderRadius: 3,
+      padding: '5px 8px',
+      fontSize: 11,
+      color: tokens.textPrimary,
+      fontFamily: 'var(--vscode-editor-font-family)',
+      outline: 'none',
+    },
+    folderButton: {
+      background: 'transparent',
+      border: `1px solid ${tokens.accent}`,
+      borderRadius: 3,
+      padding: '5px 14px',
+      fontSize: 11,
+      color: tokens.accent,
+      fontFamily: 'var(--vscode-editor-font-family)',
+      letterSpacing: '0.08em',
+      flexShrink: 0,
     },
     dropdownTrigger: {
       display: 'flex',
@@ -192,30 +246,25 @@ export function SettingsPanel({ currentPath, vscode, tokens, theme, onThemeChang
   };
   
   return (
-    <div style={styles.container}>
+    <div style={s.container}>
     
-    <Section label="PYTHON ENVIRONMENT">
+    <Section label="PYTHON ENVIRONMENT" tokens={tokens}>
     
     {/* Current active */}
-    <div style={styles.currentEnv}>
-    <span style={styles.currentLabel}>active</span>
-    <span style={styles.currentPath}>
-    {currentPath ?? 'none selected'}
-    </span>
+    <div style={s.currentEnv}>
+    <span style={s.currentLabel}>active</span>
+    <span style={s.currentPath}>{currentPath ?? 'none selected'}</span>
     </div>
     
-    {/* Scan button */}
-    <button style={styles.scanButton} onClick={handleScan}>
+    {/* Scan */}
+    <button style={s.scanButton} onClick={handleScan}>
     {loading ? 'scanning...' : 'scan environments'}
     </button>
     
-    {/* Dropdown */}
+    {/* Dropdown — only when envs found */}
     {envs.length > 0 && (
       <div style={{ position: 'relative' }}>
-      <div
-      onClick={() => setOpen(o => !o)}
-      style={styles.dropdownTrigger}
-      >
+      <div onClick={() => setOpen(o => !o)} style={s.dropdownTrigger}>
       <span style={{
         color: selectedEnv ? tokens.textPrimary : tokens.textDimmed,
         fontSize: 11,
@@ -229,26 +278,20 @@ export function SettingsPanel({ currentPath, vscode, tokens, theme, onThemeChang
       </div>
       
       {open && (
-        <div style={styles.dropdownList}>
+        <div style={s.dropdownList}>
         {envs.map(env => (
           <div
           key={env.path}
-          onClick={() => {
-            setSelected(env.path);
-            setOpen(false);
-            setSaved(false);
-          }}
+          onClick={() => { setSelected(env.path); setOpen(false); setSaved(false); }}
           style={{
-            ...styles.dropdownItem,
-            background: selected === env.path
-            ? tokens.bgCode
-            : 'transparent',
+            ...s.dropdownItem,
+            background: selected === env.path ? tokens.bgCode : 'transparent',
           }}
           >
-          <div style={styles.envName}>{env.name}</div>
-          <div style={styles.envMeta}>
-          <span style={styles.envType}>{env.type}</span>
-          <span style={styles.envPath}>{env.path}</span>
+          <div style={s.envName}>{env.name}</div>
+          <div style={s.envMeta}>
+          <span style={s.envType}>{env.type}</span>
+          <span style={s.envPath}>{env.path}</span>
           </div>
           </div>
         ))}
@@ -257,12 +300,45 @@ export function SettingsPanel({ currentPath, vscode, tokens, theme, onThemeChang
       </div>
     )}
     
+    {/* Folder input — always visible */}
+    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+    <div style={s.folderRow}>
+    <input
+    value={folderPath}
+    onChange={e => setFolderPath(e.target.value)}
+    placeholder="or enter environment folder path..."
+    spellCheck={false}
+    style={s.folderInput}
+    onKeyDown={e => e.key === 'Enter' && !folderLoading && handleLoad()}
+    />
+    <button
+    onClick={handleLoad}
+    disabled={folderLoading || !folderPath.trim()}
+    style={{
+      ...s.folderButton,
+      cursor: folderLoading || !folderPath.trim() ? 'not-allowed' : 'pointer',
+      opacity: folderLoading || !folderPath.trim() ? 0.4 : 1,
+    }}
+    >
+    {folderLoading ? '...' : 'load'}
+    </button>
+    </div>
+    {folderStatus && (
+      <span style={{
+        fontSize: 10.5,
+        color: folderStatus.ok ? '#5a7a5a' : tokens.error,
+      }}>
+      {folderStatus.ok ? '✓ ' : '✗ '}{folderStatus.message}
+      </span>
+    )}
+    </div>
+    
     {/* Save */}
     {selected && selected !== currentPath && (
-      <div style={styles.saveRow}>
+      <div style={s.saveRow}>
       <button
       style={{
-        ...styles.saveButton,
+        ...s.saveButton,
         opacity: saved ? 0.4 : 1,
         cursor: saved ? 'not-allowed' : 'pointer',
       }}
@@ -274,32 +350,32 @@ export function SettingsPanel({ currentPath, vscode, tokens, theme, onThemeChang
       </div>
     )}
     
-    <Section label="APPEARANCE">
+    </Section>
+    
+    <Section label="APPEARANCE" tokens={tokens}>
     <div style={{ display: 'flex', gap: 8 }}>
     {(['light', 'dark', null] as const).map(t => (
-  <button
-    key={String(t)}
-    onClick={() => onThemeChange(t)}
-    style={{
-      background: theme === (t ?? 'auto') ? tokens.accent : 'transparent',
-      color: theme === (t ?? 'auto') ? tokens.accentText : tokens.textSecondary,
-      border: `1px solid ${theme === (t ?? 'auto') ? tokens.accent : tokens.border}`,
-      borderRadius: 3,
-      padding: '5px 14px',
-      fontFamily: 'var(--vscode-editor-font-family)',
-      fontSize: 11,
-      cursor: 'pointer',
-      letterSpacing: '0.08em',
-    }}
-  >
-    {t === null ? 'auto' : t}
-  </button>
-))}
+      <button
+      key={String(t)}
+      onClick={() => onThemeChange(t)}
+      style={{
+        background: theme === (t ?? 'auto') ? tokens.accent : 'transparent',
+        color: theme === (t ?? 'auto') ? tokens.accentText : tokens.textSecondary,
+        border: `1px solid ${theme === (t ?? 'auto') ? tokens.accent : tokens.border}`,
+        borderRadius: 3,
+        padding: '5px 14px',
+        fontFamily: 'var(--vscode-editor-font-family)',
+        fontSize: 11,
+        cursor: 'pointer',
+        letterSpacing: '0.08em',
+      }}
+      >
+      {t === null ? 'auto' : t}
+      </button>
+    ))}
     </div>
     </Section>
     
-    </Section>
     </div>
   );
 }
-

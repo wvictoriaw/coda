@@ -66,8 +66,14 @@ def main():
             workspace_root=payload.get('workspace_root'),
             context=payload.get('context', '')
         )
+        print("run returned", file=sys.stderr)
         result['type'] = 'result'
-        print(json.dumps(result, cls=EnhancedEncoder), flush=True)
+        print("about to json dumps", file=sys.stderr)
+        encoded = json.dumps(result, cls=EnhancedEncoder)
+        print(f"json dumps complete, length: {len(encoded)}", file=sys.stderr)
+        print(encoded, flush=True)
+        print("print complete", file=sys.stderr)
+        # print(json.dumps(result, cls=EnhancedEncoder), flush=True)
     
     elif mode == 'context':
         try:

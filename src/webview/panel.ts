@@ -137,6 +137,18 @@ export class CodaPanel {
         break;
       }
       
+      case 'detectFromFolder': {
+        const folderPath = message.folderPath as string;
+        try {
+          const result = await this.runner.detectFromFolder(folderPath);
+          this.panel.webview.postMessage({ type: 'folderDetectResult', result });
+        } catch (err) {
+          const error = err instanceof Error ? err.message : String(err);
+          this.panel.webview.postMessage({ type: 'folderDetectResult', result: null, error });
+        }
+        break;
+      }
+      
       case 'getState': {
         this.panel.webview.postMessage({
           type: 'state',

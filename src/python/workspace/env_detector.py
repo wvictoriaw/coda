@@ -88,9 +88,57 @@ def detect_all(workspace_root: str) -> list[dict]:
     envs.extend(detect_pyenv_envs())
     return envs
 
+def detect_from_folder(folder_path: str) -> dict | None:
+    """
+    Given a folder path, determine if it's a conda base or a venv
+    and return the appropriate environment dict.
+    """
+    if not os.path.exists(folder_path):
+        return None
+
+    # Check if it's a direct venv — has bin/python or Scripts/python.exe
+    python_unix = os.path.join(folder_path, 'bin', 'python')
+    python_win = os.path.join(folder_path, 'Scripts', 'python.exe')
+
+    if os.path.exists(python_unix):
+        return {'name': os.path.basename(folder_path), 'path': python_unix, 'type': 'venv'}
+    if os.path.exists(python_win):
+        return {'name': os.path.basename(folder_path), 'path': python_win, 'type': 'venv'}
+
+    # Check if it's a conda base — has envs/ subfolder
+    envs_dir = os.path.join(folder_path, 'envs')
+    if os.path.exists(envs_dir):
+        # Also check base itself has python
+        base_python_unix = os.path.join(folder_path, 'bin', 'python')
+        base_python_win = os.path.join(folder_path, 'python.exe')
+        envs = []
+        if os.path.exists(base_python_unix):
+            envs.append({'name': 'base', 'path': base_python_unix, 'type': 'conda'})
+        if os.path.exists(base_python_win):
+            envs.append({'name': 'base', 'path': base_python_win, 'type': 'conda'})
+        for name in os.listdir(envs_dir):
+            env_dir = os.path.join(envs_dir, name)
+            p_unix = os.path.join(env_dir, 'bin', 'python')
+            p_win = os.path.join(env_dir, 'Scripts', 'python.exe')
+            if os.path.exists(p_unix):
+                envs.append({'name': name, 'path': p_unix, 'type': 'conda'})
+            elif os.path.exists(p_win):
+                envs.append({'name': name, 'path': p_win, 'type': 'conda'})
+        return {'type': 'conda_base', 'envs': envs} if envs else None
+
+    return None
+
 
 if __name__ == '__main__':
     raw = sys.stdin.read()
+    if not raw.strip():
+        sys.exit(1)
     payload = json.loads(raw)
-    result = detect_all(payload.get('workspace_root', ''))
-    print(json.dumps(result))
+    mode = payload.get('mode', 'detect_all')
+
+    if mode == 'detect_folder':
+        result = detect_from_folder(payload['folder_path'])
+        print(json.dumps(result))
+    else:
+        result = detect_all(payload.get('workspace_root', ''))
+        print(json.dumps(result))

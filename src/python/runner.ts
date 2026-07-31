@@ -159,13 +159,16 @@ export class PythonRunner {
             
             proc.stdout.on('data', (chunk: Buffer) => {
                 buffer += chunk.toString();
+                console.log('chunk received, buffer length:', buffer.length);
                 const lines = buffer.split('\n');
                 buffer = lines.pop() ?? '';
+                console.log('lines to process:', lines.length, 'remaining buffer:', buffer.length);
                 
                 for (const line of lines) {
                     if (!line.trim()) continue;
                     try {
                         const msg = JSON.parse(line);
+                        console.log('parsed message type:', msg.type, 'success:', msg.success);
                         if (msg.type === 'print') {
                             onPrint(msg.line);
                         } else if (msg.type === 'result' || msg.success !== undefined) {
@@ -173,7 +176,7 @@ export class PythonRunner {
                             resolve(msg as RunResult);
                         }
                     } catch {
-                        // not JSON — ignore
+                        console.log('Failed to parse line as JSON:', line);
                     }
                 }
             });
@@ -266,6 +269,62 @@ export class PythonRunner {
             });
             
             proc.stdin.write(JSON.stringify({ workspace_root: workspaceRoot }));
+            proc.stdin.end();
+        });
+    }
+    
+    async detectFromFolder(folderPath: string): Promise<
+    { name: string; path: string; type: string } |
+    { type: 'conda_base'; envs: { name: string; path: string; type: string }[] } |
+    null
+    > {
+        const detectorScript = path.join(
+            this.context.extensionPath, 'out', 'python', 'workspace', 'env_detector.py'
+        );
+        
+        return new Promise((resolve, reject) => {
+            const systemPython = process.platform === 'win32' ? 'python' : 'python3';
+            const proc = cp.spawn(systemPython, [detectorScript], {
+                env: {
+                    ...process.env,
+                    PYTHONIOENCODING: 'utf-8',
+                    PYTHONUTF8: '1',
+                }
+            });
+            
+            const timer = setTimeout(() => {
+                proc.kill();
+                reject(new Error('detect_folder timed out'));
+            }, 10000);
+            
+            let stdout = '';
+            let stderr = '';
+            
+            proc.stdout.on('data', (chunk) => { stdout += chunk; });
+            proc.stderr.on('data', (chunk) => { stderr += chunk; });
+            
+            proc.on('close', (code) => {
+                clearTimeout(timer);
+                if (code !== 0) {
+                    reject(new Error(`detect_folder failed: ${stderr}`));
+                    return;
+                }
+                try {
+                    resolve(JSON.parse(stdout));
+                } catch {
+                    reject(new Error(`Failed to parse detect_folder output: ${stdout}`));
+                }
+            });
+            
+            proc.on('error', (err) => {
+                clearTimeout(timer);
+                reject(new Error(`Failed to spawn detect_folder: ${err.message}`));
+            });
+            
+            proc.stdin.write(JSON.stringify({
+                mode: 'detect_folder',
+                folder_path: folderPath,
+            }), 'utf8');
             proc.stdin.end();
         });
     }

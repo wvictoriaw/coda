@@ -24,6 +24,8 @@ export interface CodaState {
   hasSelectedEnv: boolean;
   nodePort: number;
   preferredBrowser: string | null;
+  condaBasePath: string | null;
+  manualVenvPath: string | null;
 }
 
 export class StateManager {
@@ -45,6 +47,8 @@ export class StateManager {
       hasSelectedEnv: false,
       nodePort: 3000,
       preferredBrowser: null,
+      condaBasePath: null,
+      manualVenvPath: null,
     };
   }
   
