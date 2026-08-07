@@ -24,6 +24,7 @@ export class CodaPanel {
       vscode.ViewColumn.Beside,
       {
         enableScripts: true,
+        retainContextWhenHidden: true,
         localResourceRoots: [
           vscode.Uri.joinPath(extensionUri, 'out', 'webview')
         ]

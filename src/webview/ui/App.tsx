@@ -45,7 +45,13 @@ export function App() {
         setActiveTab('debug');
         break;
         case 'languageMode':
+        if (mode === 'welcome') {
+          setMode(msg.mode);
+        }
+        break;
+        case 'forceLanguageMode':
         setMode(msg.mode);
+        if (msg.mode === 'python') setNodeStarted(false);
         break;
         case 'envStatus':
         setHasSelectedEnv(msg.hasSelectedEnv);
