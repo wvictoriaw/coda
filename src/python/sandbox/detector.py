@@ -37,6 +37,8 @@ def detect_external_vars(snippet: str, context: str = '') -> list[str]:
                         context_assigned.add(alias.asname if alias.asname else alias.name)
                 elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     context_assigned.add(node.name)
+                    # for arg in node.args.args:
+                    #     context_assigned.add(arg.arg)
                 elif isinstance(node, ast.ClassDef):
                     context_assigned.add(node.name)
         except SyntaxError:
