@@ -49,6 +49,8 @@ export function DebugPanel({ snippet, startLine, externalVars, snippetContext, v
   const [streamPrints, setStreamPrints] = useState<string[]>([]);
   const [inspectValue, setInspectValue] = useState<{ label: string; value: unknown } | null>(null);
   
+  console.log('externalVars received:', externalVars);
+  console.log('snippet received:', snippet);
   
   React.useEffect(() => {
     setEditedSnippet(snippet);

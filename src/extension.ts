@@ -4,6 +4,7 @@ import { PythonRunner } from './python/runner';
 import { NodeRunner } from './node/runner';
 import { LLMClient } from './llm/client';
 import { StateManager } from './state/manager';
+import * as fs from 'fs';
 
 export function activate(context: vscode.ExtensionContext) {
   console.log('Coda is active');
@@ -16,7 +17,13 @@ export function activate(context: vscode.ExtensionContext) {
   // Restore saved Python environment
   const { pythonPath, hasSelectedEnv } = state.getEnvironment();
   if (hasSelectedEnv && pythonPath) {
-    runner.setPythonPath(pythonPath);
+    if (fs.existsSync(pythonPath)) {
+      runner.setPythonPath(pythonPath);
+    } else {
+      // Path doesn't exist on this machine — reset silently
+      state.setEnvironment('');
+      console.log(`Coda: saved Python path not found (${pythonPath}), resetting`);
+    }
   }
   
   // Language detection — switch panel mode based on active file

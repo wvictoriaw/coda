@@ -69,16 +69,20 @@ export class CodaPanel {
   
   // Called when developer highlights and triggers debug mode
   public async loadSnippet(snippet: string, startLine: number, fileContent: string) {
-    const context = await this.runner.extractContext(fileContent, startLine);
-    const { externalVars } = await this.runner.detectExternalVars(snippet, context);
-    
-    this.panel.webview.postMessage({
-      type: 'loadSnippet',
-      snippet,
-      startLine,
-      externalVars,
-      context,
-    });
+    try {
+      const context = await this.runner.extractContext(fileContent, startLine);
+      const { externalVars } = await this.runner.detectExternalVars(snippet, context);
+      
+      this.panel.webview.postMessage({
+        type: 'loadSnippet',
+        snippet,
+        startLine,
+        externalVars,
+        context,
+      });
+    } catch (error) {
+      this.panel.webview.postMessage({ type: 'envRequired' });
+    }
   }
   
   public postMessage(message: unknown) {

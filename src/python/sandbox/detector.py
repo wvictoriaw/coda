@@ -18,7 +18,7 @@ def detect_external_vars(snippet: str, context: str = '') -> list[str]:
     if context:
         try:
             context_tree = ast.parse(context)
-            for node in ast.walk(context_tree):
+            for node in ast.iter_child_nodes(context_tree):
                 if isinstance(node, ast.Assign):
                     for target in node.targets:
                         if isinstance(target, ast.Name):
@@ -37,12 +37,10 @@ def detect_external_vars(snippet: str, context: str = '') -> list[str]:
                         context_assigned.add(alias.asname if alias.asname else alias.name)
                 elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
                     context_assigned.add(node.name)
-                    for arg in node.args.args:
-                        context_assigned.add(arg.arg)
                 elif isinstance(node, ast.ClassDef):
                     context_assigned.add(node.name)
         except SyntaxError:
-            pass
+            raise SyntaxError(f"syntax error in context: {e.msg} (line {e.lineno})")
 
     builtins_set = set(dir(builtins))
     assigned_so_far = set()
@@ -178,4 +176,10 @@ def detect_external_vars(snippet: str, context: str = '') -> list[str]:
                             external.add(child.id)
 
     process_statements(tree.body)
+    
+    print(f"snippet: {repr(snippet)}", file=sys.stderr)
+    print(f"assigned_so_far: {assigned_so_far}", file=sys.stderr)
+    print(f"context_assigned: {context_assigned}", file=sys.stderr)
+    print(f"external: {external}", file=sys.stderr)
+        
     return list(external)
