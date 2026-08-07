@@ -69,16 +69,21 @@ export class CodaPanel {
   
   // Called when developer highlights and triggers debug mode
   public async loadSnippet(snippet: string, startLine: number, fileContent: string) {
-    const context = await this.runner.extractContext(fileContent, startLine);
-    const { externalVars } = await this.runner.detectExternalVars(snippet, context);
-    
-    this.panel.webview.postMessage({
-      type: 'loadSnippet',
-      snippet,
-      startLine,
-      externalVars,
-      context,
-    });
+    try {
+      const snippetContext = await this.runner.extractContext(fileContent, startLine);
+      const { externalVars, syntaxError } = await this.runner.detectExternalVars(snippet, snippetContext);
+      
+      this.panel.webview.postMessage({
+        type: 'loadSnippet',
+        snippet,
+        startLine,
+        externalVars,
+        context: snippetContext,
+        syntaxError: syntaxError ?? null,
+      });
+    } catch (err) {
+      this.panel.webview.postMessage({ type: 'envRequired' });
+    }
   }
   
   public postMessage(message: unknown) {
@@ -113,7 +118,11 @@ export class CodaPanel {
           this.panel.webview.postMessage({ type: 'runResult', result });
         } catch (err) {
           const error = err instanceof Error ? err.message : String(err);
-          this.panel.webview.postMessage({ type: 'runError', error });
+          if (error.includes('No Python environment')) {
+            this.panel.webview.postMessage({ type: 'envRequired' });
+          } else {
+            this.panel.webview.postMessage({ type: 'runError', error });
+          }
         }
         break;
       }
