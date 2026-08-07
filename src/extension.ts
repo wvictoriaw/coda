@@ -29,11 +29,13 @@ export function activate(context: vscode.ExtensionContext) {
   // Language detection — switch panel mode based on active file
   const sendLanguageMode = (editor: vscode.TextEditor | undefined) => {
     if (!editor) return;
+    if (!CodaPanel.instance) return;
+    
     const lang = editor.document.languageId;
     if (lang === 'python') {
-      CodaPanel.instance?.postMessage({ type: 'languageMode', mode: 'python' });
+      CodaPanel.instance.postMessage({ type: 'languageMode', mode: 'python' });
     } else if (['javascript', 'typescript', 'javascriptreact', 'typescriptreact'].includes(lang)) {
-      CodaPanel.instance?.postMessage({ type: 'languageMode', mode: 'node' });
+      CodaPanel.instance.postMessage({ type: 'languageMode', mode: 'node' });
     }
   };
   
@@ -63,6 +65,13 @@ export function activate(context: vscode.ExtensionContext) {
         }
         return;
       }
+      
+      // Panel already open — force mode switch and load snippet
+      CodaPanel.instance?.postMessage({ 
+        type: 'forceLanguageMode', 
+        mode: langId === 'python' ? 'python' : 'node' 
+      });
+      
       
       // Panel open — trigger debug if snippet selected
       if (snippet && langId === 'python') {
