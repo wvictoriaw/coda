@@ -2,7 +2,7 @@
 
 vsc extension that helps me remove the things about AI coding assistants that make them a nightmare
 
-###PSA: this extension is in dev; it hasn't been packaged yet! 
+### PSA: this extension is in dev; it hasn't been packaged yet! 
 
 ## Features
 
@@ -13,7 +13,6 @@ vsc extension that helps me remove the things about AI coding assistants that ma
 
 - Only Python for now
 - some localhost functionality for js/jsx/ts/tsx files
-- Other languages coming soon
 
 ## How to run
 
